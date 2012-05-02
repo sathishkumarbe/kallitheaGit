@@ -75,6 +75,12 @@ ${c.repo_name} ${_('Changelog')} - ${c.rhodecode_name}
                                             </div>
                                         %endif
                                         </div>
+                                        <div class="changeset-status-container">
+                                            %if c.statuses.get(cs.raw_id):
+                                              <img src="${h.url('/images/icons/flag_status_%s.png' % c.statuses.get(cs.raw_id)[0])}" />
+                                              <div class="changeset-status-lbl">${c.statuses.get(cs.raw_id)[1]}</div>
+                                            %endif
+                                        </div>
 									</div>
 								   %if cs.parents:
 									%for p_cs in reversed(cs.parents):
