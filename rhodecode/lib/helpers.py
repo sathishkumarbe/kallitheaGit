@@ -42,6 +42,7 @@ from rhodecode.lib.utils import repo_name_slug
 from rhodecode.lib.utils2 import str2bool, safe_unicode, safe_str, \
     get_changeset_safe
 from rhodecode.lib.markup_renderer import MarkupRenderer
+from rhodecode.model.changeset_status import ChangesetStatusModel
 
 log = logging.getLogger(__name__)
 
@@ -333,7 +334,7 @@ flash = _Flash()
 #==============================================================================
 from rhodecode.lib.vcs.utils import author_name, author_email
 from rhodecode.lib.utils2 import credentials_filter, age as _age
-from rhodecode.model.db import User
+from rhodecode.model.db import User, ChangesetStatus
 
 age = lambda  x: _age(x)
 capitalize = lambda x: x.capitalize()
@@ -875,7 +876,6 @@ def urlify_commit(text_, repository=None, link_=None):
 
         return ''.join(links)
 
-
     # urlify changesets - extrac revisions and make link out of them
     text_ = urlify_changesets(escaper(text_), repository)
 
@@ -939,3 +939,11 @@ def rst_w_mentions(source):
     """
     return literal('<div class="rst-block">%s</div>' %
                    MarkupRenderer.rst_with_mentions(source))
+
+
+def changeset_status(repo, revision):
+    return ChangesetStatusModel().get_status(repo, revision)
+
+
+def changeset_status_lbl(changeset_status):
+    return dict(ChangesetStatus.STATUSES).get(changeset_status)
