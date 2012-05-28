@@ -2,7 +2,7 @@
 <%inherit file="/base/base.html"/>
 
 <%def name="title()">
-    ${c.repo_name} ${_('Changesets')} - r${c.cs_ranges[0].revision}:${h.short_id(c.cs_ranges[0].raw_id)} -> r${c.cs_ranges[-1].revision}:${h.short_id(c.cs_ranges[-1].raw_id)} - ${c.rhodecode_name}
+    ${c.repo_name} ${_('Compare')} ${'%s@%s' % (c.org_repo.repo_name, c.org_ref)} -> ${'%s@%s' % (c.other_repo.repo_name, c.other_ref)}
 </%def>
 
 <%def name="breadcrumbs_links()">
@@ -10,7 +10,7 @@
     &raquo;
     ${h.link_to(c.repo_name,h.url('summary_home',repo_name=c.repo_name))}
     &raquo;
-    ${_('Changesets')} - r${c.cs_ranges[0].revision}:${h.short_id(c.cs_ranges[0].raw_id)} -> r${c.cs_ranges[-1].revision}:${h.short_id(c.cs_ranges[-1].raw_id)}
+    ${_('Compare')}
 </%def>
 
 <%def name="page_nav()">
@@ -24,25 +24,25 @@
         ${self.breadcrumbs()}
     </div>
     <div class="table">
-		<div id="body" class="diffblock">
-			<div class="code-header cv">
-		        <h3 class="code-header-title">${_('Compare View')}</h3>
+        <div id="body" class="diffblock">
+            <div class="code-header cv">
+                <h3 class="code-header-title">${_('Compare View')} <a href="${c.swap_url}">swap</a></h3>
                 <div>
-				${_('Changesets')} - r${c.cs_ranges[0].revision}:${h.short_id(c.cs_ranges[0].raw_id)} -> r${c.cs_ranges[-1].revision}:${h.short_id(c.cs_ranges[-1].raw_id)}
-				</div>
-			</div>
-		</div>
-	    <div id="changeset_compare_view_content">
-			<div class="container">
-			<table class="compare_view_commits noborder">
-            %for cnt,cs in enumerate(c.cs_ranges):
+                ${'%s@%s' % (c.org_repo.repo_name, c.org_ref)} -> ${'%s@%s' % (c.other_repo.repo_name, c.other_ref)}
+                </div>
+            </div>
+        </div>
+        <div id="changeset_compare_view_content">
+            <div class="container">
+            <table class="compare_view_commits noborder">
+            %for cnt, cs in enumerate(c.cs_ranges):
                 <tr>
                 <td><div class="gravatar"><img alt="gravatar" src="${h.gravatar_url(h.email(cs.author),14)}"/></div></td>
                 <td>${h.link_to('r%s:%s' % (cs.revision,h.short_id(cs.raw_id)),h.url('changeset_home',repo_name=c.repo_name,revision=cs.raw_id))}</td>
                 <td><div class="author">${h.person(cs.author)}</div></td>
                 <td><span class="tooltip" title="${h.age(cs.date)}">${cs.date}</span></td>
                 <td>
-                  %if c.statuses:
+                  %if hasattr(c,'statuses') and c.statuses:
                     <div title="${_('Changeset status')}" class="changeset-status-ico"><img src="${h.url('/images/icons/flag_status_%s.png' % c.statuses[cnt])}" /></div>
                   %endif
                 </td>
@@ -50,29 +50,25 @@
                 </tr>
             %endfor
             </table>
-	        </div>
-	        <div style="font-size:1.1em;font-weight: bold;clear:both;padding-top:10px">${_('Files affected')}</div>
-	        <div class="cs_files">
-	               %for cs in c.cs_ranges:
-	                   <div class="cur_cs">r${cs}</div>
-	                %for change,filenode,diff,cs1,cs2,st in c.changes[cs.raw_id]:
-	                    <div class="cs_${change}">${h.link_to(h.safe_unicode(filenode.path),h.url.current(anchor=h.FID(cs.raw_id,filenode.path)))}</div>
-	                %endfor
-	               %endfor
-	        </div>
-	    </div>
-
+            </div>
+            <div style="font-size:1.1em;font-weight: bold;clear:both;padding-top:10px">${_('Files affected')}</div>
+            <div class="cs_files">
+              %for fid, change, f, stat in c.files:              
+                  <div class="cs_${change}">
+                    <div class="node">${h.link_to(h.safe_unicode(f),h.url.current(anchor=fid))}</div>
+                    <div class="changes">${h.fancy_file_stats(stat)}</div>
+                  </div>
+              %endfor
+            </div>
+        </div>
     </div>
-    <%namespace name="comment" file="/changeset/changeset_file_comment.html"/>
+    
+    ## diff block
     <%namespace name="diff_block" file="/changeset/diff_block.html"/>
-     %for cs in c.cs_ranges:
-          ##${comment.comment_inline_form(cs)}
-          ## diff block
-          <h3 style="border:none;padding-top:8px;">${'r%s:%s' % (cs.revision,h.short_id(cs.raw_id))}</h3>
-          ${diff_block.diff_block(c.changes[cs.raw_id])}
-          ##${comment.comments(cs)}
-
-     %endfor
+    %for fid, change, f, stat in c.files:
+      ${diff_block.diff_block_simple([c.changes[fid]])}
+    %endfor
+    
      <script type="text/javascript">
 
       YUE.onDOMReady(function(){

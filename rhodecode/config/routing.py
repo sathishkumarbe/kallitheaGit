@@ -212,6 +212,10 @@ def make_map(config):
         #EXTRAS USER ROUTES
         m.connect("user_perm", "/users_perm/{id}",
                   action="update_perm", conditions=dict(method=["PUT"]))
+        m.connect("user_emails", "/users_emails/{id}",
+                  action="add_email", conditions=dict(method=["PUT"]))
+        m.connect("user_emails_delete", "/users_emails/{id}",
+                  action="delete_email", conditions=dict(method=["DELETE"]))
 
     #ADMIN USERS REST ROUTES
     with rmap.submapper(path_prefix=ADMIN_PREFIX,
@@ -411,6 +415,16 @@ def make_map(config):
                  '/{repo_name:.*}/raw-changeset/{revision}',
                  controller='changeset', action='raw_changeset',
                  revision='tip', conditions=dict(function=check_repo))
+
+    rmap.connect('compare_home',
+                 '/{repo_name:.*}/compare/{ref:.*}',
+                 controller='compare', action='index',
+                 conditions=dict(function=check_repo))
+
+    rmap.connect('pullrequest_home',
+                 '/{repo_name:.*}/pull-request/new',
+                 controller='pullrequests', action='index',
+                 conditions=dict(function=check_repo))
 
     rmap.connect('summary_home', '/{repo_name:.*}/summary',
                 controller='summary', conditions=dict(function=check_repo))

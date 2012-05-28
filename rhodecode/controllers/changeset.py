@@ -43,8 +43,9 @@ from rhodecode.lib.base import BaseRepoController, render
 from rhodecode.lib.utils import EmptyChangeset
 from rhodecode.lib.compat import OrderedDict
 from rhodecode.lib import diffs
-from rhodecode.model.db import ChangesetComment
+from rhodecode.model.db import ChangesetComment, ChangesetStatus
 from rhodecode.model.comment import ChangesetCommentsModel
+from rhodecode.model.changeset_status import ChangesetStatusModel
 from rhodecode.model.meta import Session
 from rhodecode.lib.diffs import wrapped_diff
 
@@ -201,12 +202,18 @@ class ChangesetController(BaseRepoController):
 
         cumulative_diff = 0
         c.cut_off = False  # defines if cut off limit is reached
-
+        c.changeset_statuses = ChangesetStatus.STATUSES
         c.comments = []
+        c.statuses = []
         c.inline_comments = []
         c.inline_cnt = 0
         # Iterate over ranges (default changeset view is always one changeset)
         for changeset in c.cs_ranges:
+
+            c.statuses.extend([ChangesetStatusModel()\
+                              .get_status(c.rhodecode_db_repo.repo_id,
+                                          changeset.raw_id)])
+
             c.comments.extend(ChangesetCommentsModel()\
                               .get_comments(c.rhodecode_db_repo.repo_id,
                                             changeset.raw_id))
@@ -361,14 +368,30 @@ class ChangesetController(BaseRepoController):
 
     @jsonify
     def comment(self, repo_name, revision):
+        status = request.POST.get('changeset_status')
+        change_status = request.POST.get('change_changeset_status')
+
         comm = ChangesetCommentsModel().create(
             text=request.POST.get('text'),
             repo_id=c.rhodecode_db_repo.repo_id,
             user_id=c.rhodecode_user.user_id,
             revision=revision,
             f_path=request.POST.get('f_path'),
-            line_no=request.POST.get('line')
+            line_no=request.POST.get('line'),
+            status_change=(ChangesetStatus.get_status_lbl(status) 
+                           if status and change_status else None)
         )
+
+        # get status if set !
+        if status and change_status:
+            ChangesetStatusModel().set_status(
+                c.rhodecode_db_repo.repo_id,
+                revision,
+                status,
+                c.rhodecode_user.user_id,
+                comm,
+            )
+
         Session.commit()
         if not request.environ.get('HTTP_X_PARTIAL_XHR'):
             return redirect(h.url('changeset_home', repo_name=repo_name,

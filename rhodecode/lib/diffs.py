@@ -26,16 +26,23 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import re
+import io
 import difflib
 import markupsafe
+
 from itertools import tee, imap
+
+from mercurial import patch
+from mercurial.mdiff import diffopts
+from mercurial.bundlerepo import bundlerepository
+from mercurial import localrepo
 
 from pylons.i18n.translation import _
 
 from rhodecode.lib.vcs.exceptions import VCSError
 from rhodecode.lib.vcs.nodes import FileNode, SubModuleNode
 from rhodecode.lib.helpers import escape
-from rhodecode.lib.utils import EmptyChangeset
+from rhodecode.lib.utils import EmptyChangeset, make_ui
 
 
 def wrap_to_table(str_):
@@ -171,7 +178,7 @@ class DiffProcessor(object):
 
     def _extract_rev(self, line1, line2):
         """
-        Extract the filename and revision hint from a line.
+        Extract the operation (A/M/D), filename and revision hint from a line.
         """
 
         try:
@@ -189,11 +196,15 @@ class DiffProcessor(object):
                 filename = (old_filename
                             if old_filename != '/dev/null' else new_filename)
 
-                return filename, new_rev, old_rev
+                operation = 'D' if new_filename == '/dev/null' else None
+                if not operation:
+                    operation = 'M' if old_filename != '/dev/null' else 'A'
+
+                return operation, filename, new_rev, old_rev
         except (ValueError, IndexError):
             pass
 
-        return None, None, None
+        return None, None, None, None
 
     def _parse_gitdiff(self, diffiterator):
         def line_decoder(l):
@@ -275,6 +286,7 @@ class DiffProcessor(object):
                     tag,
                     l['line'][last:]
                 )
+
             do(line)
             do(next_)
 
@@ -288,6 +300,7 @@ class DiffProcessor(object):
             line = lineiter.next()
             # skip first context
             skipfirst = True
+
             while 1:
                 # continue until we found the old file
                 if not line.startswith('--- '):
@@ -295,17 +308,21 @@ class DiffProcessor(object):
                     continue
 
                 chunks = []
-                filename, old_rev, new_rev = \
+                stats = [0, 0]
+                operation, filename, old_rev, new_rev = \
                     self._extract_rev(line, lineiter.next())
                 files.append({
                     'filename':         filename,
                     'old_revision':     old_rev,
                     'new_revision':     new_rev,
-                    'chunks':           chunks
+                    'chunks':           chunks,
+                    'operation':        operation,
+                    'stats':            stats,
                 })
 
                 line = lineiter.next()
                 while line:
+
                     match = self._chunk_re.match(line)
                     if not match:
                         break
@@ -346,9 +363,11 @@ class DiffProcessor(object):
                         elif command == '+':
                             affects_new = True
                             action = 'add'
+                            stats[0] += 1
                         elif command == '-':
                             affects_old = True
                             action = 'del'
+                            stats[1] += 1
                         else:
                             affects_old = affects_new = True
                             action = 'unmod'
@@ -362,15 +381,13 @@ class DiffProcessor(object):
                             'line':         line
                         })
                         line = lineiter.next()
-
         except StopIteration:
             pass
 
         # highlight inline changes
-        for _ in files:
-            for chunk in chunks:
+        for diff_data in files:
+            for chunk in diff_data['chunks']:
                 lineiter = iter(chunk)
-                #first = True
                 try:
                     while 1:
                         line = lineiter.next()
@@ -382,7 +399,6 @@ class DiffProcessor(object):
                             self.differ(line, nextline)
                 except StopIteration:
                     pass
-
         return files
 
     def prepare(self):
@@ -424,9 +440,9 @@ class DiffProcessor(object):
 
     def as_html(self, table_class='code-difftable', line_class='line',
                 new_lineno_class='lineno old', old_lineno_class='lineno new',
-                code_class='code', enable_comments=False):
+                code_class='code', enable_comments=False, diff_lines=None):
         """
-        Return udiff as html table with customized css classes
+        Return given diff as html table with customized css classes
         """
         def _link_to_if(condition, label, url):
             """
@@ -440,7 +456,8 @@ class DiffProcessor(object):
                 }
             else:
                 return label
-        diff_lines = self.prepare()
+        if diff_lines is None:
+            diff_lines = self.prepare()
         _html_empty = True
         _html = []
         _html.append('''<table class="%(table_class)s">\n''' % {
@@ -522,3 +539,71 @@ class DiffProcessor(object):
         Returns tuple of added, and removed lines for this instance
         """
         return self.adds, self.removes
+
+
+def differ(org_repo, org_ref, other_repo, other_ref, discovery_data=None):
+    """
+    General differ between branches, bookmarks or separate but releated 
+    repositories
+
+    :param org_repo:
+    :type org_repo:
+    :param org_ref:
+    :type org_ref:
+    :param other_repo:
+    :type other_repo:
+    :param other_ref:
+    :type other_ref:
+    """
+
+    ignore_whitespace = False
+    context = 3
+    org_repo = org_repo.scm_instance._repo
+    other_repo = other_repo.scm_instance._repo
+    opts = diffopts(git=True, ignorews=ignore_whitespace, context=context)
+    org_ref = org_ref[1]
+    other_ref = other_ref[1]
+
+    if org_repo != other_repo:
+
+        common, incoming, rheads = discovery_data
+        # create a bundle (uncompressed if other repo is not local)
+        if other_repo.capable('getbundle'):
+            # disable repo hooks here since it's just bundle !
+            # patch and reset hooks section of UI config to not run any
+            # hooks on fetching archives with subrepos
+            for k, _ in other_repo.ui.configitems('hooks'):
+                other_repo.ui.setconfig('hooks', k, None)
+
+            unbundle = other_repo.getbundle('incoming', common=common,
+                                            heads=rheads)
+
+            buf = io.BytesIO()
+            while True:
+                chunk = unbundle._stream.read(1024*4)
+                if not chunk:
+                    break
+                buf.write(chunk)
+
+            buf.seek(0)
+            unbundle._stream = buf
+
+        class InMemoryBundleRepo(bundlerepository):
+            def __init__(self, ui, path, bundlestream):
+                self._tempparent = None
+                localrepo.localrepository.__init__(self, ui, path)
+                self.ui.setconfig('phases', 'publish', False)
+
+                self.bundle = bundlestream
+
+                # dict with the mapping 'filename' -> position in the bundle
+                self.bundlefilespos = {}
+
+        ui = make_ui('db')
+        bundlerepo = InMemoryBundleRepo(ui, path=other_repo.root,
+                                        bundlestream=unbundle)
+        return ''.join(patch.diff(bundlerepo, node1=org_ref, node2=other_ref,
+                                  opts=opts))
+    else:
+        return ''.join(patch.diff(org_repo, node1=org_ref, node2=other_ref,
+                                  opts=opts))

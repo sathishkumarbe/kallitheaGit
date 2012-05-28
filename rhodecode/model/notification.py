@@ -108,6 +108,7 @@ class NotificationModel(BaseModel):
             email_subject = NotificationModel().make_description(notif, False)
             type_ = type_
             email_body = body
+            ## this is passed into template
             kwargs = {'subject': subject, 'body': h.rst_w_mentions(body)}
             kwargs.update(email_kwargs)
             email_body_html = EmailNotificationModel()\
@@ -142,7 +143,7 @@ class NotificationModel(BaseModel):
     def mark_all_read_for_user(self, user):
         user = self.__get_user(user)
         UserNotification.query()\
-            .filter(UserNotification.read==False)\
+            .filter(UserNotification.read == False)\
             .update({'read': True})
 
     def get_unread_cnt_for_user(self, user):
