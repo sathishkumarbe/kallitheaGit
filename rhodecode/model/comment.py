@@ -32,7 +32,8 @@ from sqlalchemy.util.compat import defaultdict
 from rhodecode.lib.utils2 import extract_mentioned_users, safe_unicode
 from rhodecode.lib import helpers as h
 from rhodecode.model import BaseModel
-from rhodecode.model.db import ChangesetComment, User, Repository, Notification
+from rhodecode.model.db import ChangesetComment, User, Repository, \
+    Notification, PullRequest
 from rhodecode.model.notification import NotificationModel
 
 log = logging.getLogger(__name__)
@@ -43,6 +44,9 @@ class ChangesetCommentsModel(BaseModel):
     def __get_changeset_comment(self, changeset_comment):
         return self._get_instance(ChangesetComment, changeset_comment)
 
+    def __get_pull_request(self, pull_request):
+        return self._get_instance(PullRequest, pull_request)
+
     def _extract_mentions(self, s):
         user_objects = []
         for username in extract_mentioned_users(s):
@@ -52,9 +56,10 @@ class ChangesetCommentsModel(BaseModel):
         return user_objects
 
     def create(self, text, repo_id, user_id, revision, f_path=None,
-               line_no=None):
+               line_no=None, status_change=None):
         """
-        Creates new comment for changeset
+        Creates new comment for changeset. IF status_change is not none
+        this comment is associated with a status change of changeset
 
         :param text:
         :param repo_id:
@@ -62,6 +67,7 @@ class ChangesetCommentsModel(BaseModel):
         :param revision:
         :param f_path:
         :param line_no:
+        :param status_change:
         """
 
         if text:
@@ -105,7 +111,8 @@ class ChangesetCommentsModel(BaseModel):
             # create notification objects, and emails
             NotificationModel().create(
               created_by=user_id, subject=subj, body=body,
-              recipients=recipients, type_=Notification.TYPE_CHANGESET_COMMENT
+              recipients=recipients, type_=Notification.TYPE_CHANGESET_COMMENT,
+              email_kwargs={'status_change': status_change}
             )
 
             mention_recipients = set(self._extract_mentions(body))\
@@ -115,7 +122,8 @@ class ChangesetCommentsModel(BaseModel):
                 NotificationModel().create(
                     created_by=user_id, subject=subj, body=body,
                     recipients=mention_recipients,
-                    type_=Notification.TYPE_CHANGESET_COMMENT
+                    type_=Notification.TYPE_CHANGESET_COMMENT,
+                    email_kwargs={'status_change': status_change}
                 )
 
             return comment
@@ -131,21 +139,47 @@ class ChangesetCommentsModel(BaseModel):
 
         return comment
 
-    def get_comments(self, repo_id, revision):
-        return ChangesetComment.query()\
-                .filter(ChangesetComment.repo_id == repo_id)\
-                .filter(ChangesetComment.revision == revision)\
-                .filter(ChangesetComment.line_no == None)\
-                .filter(ChangesetComment.f_path == None).all()
+    def get_comments(self, repo_id, revision=None, pull_request=None):
+        """
+        Get's main comments based on revision or pull_request_id
 
-    def get_inline_comments(self, repo_id, revision):
-        comments = self.sa.query(ChangesetComment)\
+        :param repo_id:
+        :type repo_id:
+        :param revision:
+        :type revision:
+        :param pull_request:
+        :type pull_request:
+        """
+
+        q = ChangesetComment.query()\
+                .filter(ChangesetComment.repo_id == repo_id)\
+                .filter(ChangesetComment.line_no == None)\
+                .filter(ChangesetComment.f_path == None)
+        if revision:
+            q = q.filter(ChangesetComment.revision == revision)
+        elif pull_request:
+            pull_request = self.__get_pull_request(pull_request)
+            q = q.filter(ChangesetComment.pull_request == pull_request)
+        else:
+            raise Exception('Please specify revision or pull_request')
+        return q.all()
+
+    def get_inline_comments(self, repo_id, revision=None, pull_request=None):
+        q = self.sa.query(ChangesetComment)\
             .filter(ChangesetComment.repo_id == repo_id)\
-            .filter(ChangesetComment.revision == revision)\
             .filter(ChangesetComment.line_no != None)\
             .filter(ChangesetComment.f_path != None)\
             .order_by(ChangesetComment.comment_id.asc())\
-            .all()
+
+        if revision:
+            q = q.filter(ChangesetComment.revision == revision)
+        elif pull_request:
+            pull_request = self.__get_pull_request(pull_request)
+            q = q.filter(ChangesetComment.pull_request == pull_request)
+        else:
+            raise Exception('Please specify revision or pull_request_id')
+
+        comments = q.all()
 
         paths = defaultdict(lambda: defaultdict(list))
 
