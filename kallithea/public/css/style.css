@@ -510,7 +510,7 @@ div.header img {
 
 td.quick_repo_menu:before {
     font-family: "kallithea";
-    content: "\e80f";           /* triangle-right */
+    content: "\23f5";           /* triangle-right */
     margin-left: 3px;
     padding-right: 3px;
 }
@@ -523,7 +523,7 @@ td.quick_repo_menu {
 
 td.quick_repo_menu.active:before {
     font-family: "kallithea";
-    content: "\e80d";           /* triangle-down */
+    content: "\23f7";           /* triangle-down */
     margin-left: 1px;
     padding-right: 1px;
 }
@@ -735,12 +735,12 @@ th.yui-dt-hidden .yui-dt-resizer { display: none }
 
 .yui-skin-sam th.yui-dt-asc .yui-dt-liner:after {
     font-family: "kallithea";
-    content: "\e810";           /* triangle-up */
+    content: "\23f6";           /* triangle-up */
 }
 
 .yui-skin-sam th.yui-dt-desc .yui-dt-liner:after {
     font-family: "kallithea";
-    content: "\e80d";           /* triangle-down */
+    content: "\23f7";           /* triangle-down */
 }
 
 tbody .yui-dt-editable { cursor: pointer }
@@ -3715,7 +3715,8 @@ div#legend_data, div#legend_container, div#legend_choices {
 }
 
 .repo-switcher .select2-chosen:after {
-    content: ' \25BE';
+    font-family: 'kallithea';
+    content: ' \23f7';
 }
 
 .repo-switcher-dropdown.select2-drop.select2-drop-active {
@@ -4346,6 +4347,10 @@ div.rst-block pre {
     font-size: 16px;
 }
 
+.automatic-comment {
+    font-style: italic;
+}
+
 /** comment form **/
 
 .status-block {
@@ -4968,7 +4973,7 @@ table.code-difftable .del .code pre:before {
     position: relative;
     width: 0;
 }
- 
+
 table.code-difftable .add .code pre:before {
     content: "+";
     color: #080;
@@ -4977,7 +4982,7 @@ table.code-difftable .add .code pre:before {
     position: relative;
     width: 0;
 }
- 
+
 table.code-difftable .unmod .code pre:before {
     content: " ";
     float: left;
@@ -4985,7 +4990,7 @@ table.code-difftable .unmod .code pre:before {
     position: relative;
     width: 0;
 }
- 
+
 .add-bubble {
     position: relative;
     display: none;
@@ -5022,7 +5027,7 @@ tr.line.unmod:hover td .add-bubble {
     font-size: 14px;
     color: #ffffff;
     font-family: "kallithea";
-    content: '\e80c';
+    content: '\1f5ea';
 }
 
 .add-bubble div:hover {

@@ -11,7 +11,7 @@
                ${h.gravatar(co.author.email, size=20)}
           </div>
           <div class="user">
-              ${co.author.username}
+              ${co.author.username_and_name}
           </div>
           <div class="date">
               ${h.age(co.modified_at)}
@@ -51,7 +51,13 @@
       %endif
       </div>
       <div class="text">
+        %if co.text:
           ${h.rst_w_mentions(co.text)|n}
+        %else:
+          <div class="rst-block automatic-comment">
+            <p>${_('No comments.')}</p>
+          </div>
+        %endif
       </div>
     </div>
   </div>
