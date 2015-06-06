@@ -3,11 +3,11 @@
 <%namespace name="comment" file="/changeset/changeset_file_comment.html"/>
 
 <%block name="title">
-    ${_('%s Pull Request #%s') % (c.repo_name, c.pull_request.pull_request_id)}
+    ${_('%s Pull Request %s') % (c.repo_name, c.pull_request.nice_id())}
 </%block>
 
 <%def name="breadcrumbs_links()">
-    ${_('Pull request #%s from %s#%s') % (c.pull_request.pull_request_id, c.pull_request.org_repo.repo_name, c.cs_branch_name)}
+    ${_('Pull request %s from %s#%s') % (c.pull_request.nice_id(), c.pull_request.org_repo.repo_name, c.cs_branch_name)}
 </%def>
 
 <%block name="header_menu">
@@ -38,7 +38,7 @@ ${self.repo_context_bar('showpullrequest')}
             <label>${_('Description')}:</label>
             %if editable:
             <div style="margin: 5px">
-              <a class="btn btn-small" onclick="YUD.setStyle('pr-edit-form','display','');YUD.setStyle(YUD.getElementsByClassName('pr-not-edit'),'display','none')">${_("Edit")}</a>
+              <a class="btn btn-small" onclick="$('#pr-edit-form').show();$('.pr-not-edit').hide()">${_("Edit")}</a>
             </div>
             %endif
           </div>
@@ -76,15 +76,14 @@ ${self.repo_context_bar('showpullrequest')}
           <div class="input">
             <div class="changeset-status-container" style="float:none;clear:both">
             %if c.current_voting_result:
-              <div class="changeset-status-ico" style="padding:0px 4px 0px 0px">
-                  <i class="icon-circle changeset-status-${c.current_voting_result}" title="${_('Pull request status calculated from votes')}"></i></div>
-              <div class="changeset-status-lbl tooltip" title="${_('Pull request status calculated from votes')}">
+              <span class="changeset-status-ico" style="padding:0px 4px 0px 0px">
+                  <i class="icon-circle changeset-status-${c.current_voting_result}" title="${_('Pull request status calculated from votes')}"></i></span>
+              <span class="changeset-status-lbl tooltip" title="${_('Pull request status calculated from votes')}">
                 %if c.pull_request.is_closed():
                     ${_('Closed')},
                 %endif
                 ${h.changeset_status_lbl(c.current_voting_result)}
-              </div>
-
+              </span>
             %endif
             </div>
           </div>
@@ -221,7 +220,7 @@ ${self.repo_context_bar('showpullrequest')}
                   <div class="reviewer_gravatar gravatar">
                     ${h.gravatar(member.email, size=14)}
                   </div>
-                  <div style="float:left;">${member.full_name} (${_('owner') if c.pull_request.user_id == member.user_id else _('reviewer')})</div>
+                  <div style="float:left;">${member.full_name} (${_('Owner') if c.pull_request.user_id == member.user_id else _('Reviewer')})</div>
                   <input type="hidden" value="${member.user_id}" name="review_members" />
                   %if editable:
                   <div class="reviewer_member_remove action_button" onclick="removeReviewMember(${member.user_id})" title="${_('Remove reviewer')}">
@@ -381,7 +380,7 @@ ${self.repo_context_bar('showpullrequest')}
           var file_comments = $('.inline-comment-placeholder').toArray();
           renderInlineComments(file_comments);
 
-          linkInlineComments(document.getElementsByClassName('firstlink'), document.getElementsByClassName("comment"));
+          linkInlineComments($('.firstlink'), $('.comment'));
 
           $('#updaterevs input').change(function(e){
               var update = !!e.target.value;

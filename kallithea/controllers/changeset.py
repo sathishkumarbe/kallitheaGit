@@ -166,7 +166,7 @@ def _context_url(GET, fileid=None):
     if ig_ws:
         params[ig_ws_key] += [ig_ws_val]
 
-    lbl = _('increase diff context to %(num)s lines') % {'num': ln_ctx}
+    lbl = _('Increase diff context to %(num)s lines') % {'num': ln_ctx}
 
     params['anchor'] = fileid
     icon = h.literal('<i class="icon-sort"></i>')
@@ -349,9 +349,9 @@ class ChangesetController(BaseRepoController):
     @jsonify
     def comment(self, repo_name, revision):
         status = request.POST.get('changeset_status')
-        text = request.POST.get('text', '').strip() or _('No comments.')
+        text = request.POST.get('text', '').strip()
 
-        c.co = comm = ChangesetCommentsModel().create(
+        c.comment = comment = ChangesetCommentsModel().create(
             text=text,
             repo=c.db_repo.repo_id,
             user=c.authuser.user_id,
@@ -373,7 +373,7 @@ class ChangesetController(BaseRepoController):
                     c.db_repo.repo_id,
                     status,
                     c.authuser.user_id,
-                    comm,
+                    comment,
                     revision=revision,
                     dont_allow_on_closed_pull_request=True
                 )
@@ -397,8 +397,8 @@ class ChangesetController(BaseRepoController):
         data = {
            'target_id': h.safeid(h.safe_unicode(request.POST.get('f_path'))),
         }
-        if comm:
-            data.update(comm.get_dict())
+        if comment:
+            data.update(comment.get_dict())
             data.update({'rendered_text':
                          render('changeset/changeset_comment_block.html')})
 

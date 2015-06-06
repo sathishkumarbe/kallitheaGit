@@ -437,7 +437,7 @@ class User(Base, BaseModel):
     user_comments = relationship('ChangesetComment', cascade='all')
     #extra emails for this user
     user_emails = relationship('UserEmailMap', cascade='all')
-    #extra api keys
+    #extra API keys
     user_api_keys = relationship('UserApiKeys', cascade='all')
 
 
@@ -1263,7 +1263,7 @@ class Repository(Base, BaseModel):
                 pass
 
         return get_clone_url(uri_tmpl=uri_tmpl,
-                             qualifed_home_url=qualified_home_url,
+                             qualified_home_url=qualified_home_url,
                              repo_name=self.repo_name,
                              repo_id=self.repo_id, **override)
 

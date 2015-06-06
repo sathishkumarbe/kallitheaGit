@@ -40,7 +40,7 @@ from kallithea.lib.exceptions import DefaultUserException, \
     UserOwnsReposException, UserCreationError
 from kallithea.lib import helpers as h
 from kallithea.lib.auth import LoginRequired, HasPermissionAllDecorator, \
-    AuthUser, generate_api_key
+    AuthUser
 import kallithea.lib.auth_modules.auth_internal
 from kallithea.lib import auth_modules
 from kallithea.lib.base import BaseController, render
@@ -52,7 +52,7 @@ from kallithea.model.user import UserModel
 from kallithea.model.meta import Session
 from kallithea.lib.utils import action_logger
 from kallithea.lib.compat import json
-from kallithea.lib.utils2 import datetime_to_time, safe_int
+from kallithea.lib.utils2 import datetime_to_time, safe_int, generate_api_key
 
 log = logging.getLogger(__name__)
 
@@ -285,7 +285,7 @@ class UsersController(BaseController):
         c.active = 'api_keys'
         show_expired = True
         c.lifetime_values = [
-            (str(-1), _('forever')),
+            (str(-1), _('Forever')),
             (str(5), _('5 minutes')),
             (str(60), _('1 hour')),
             (str(60 * 24), _('1 day')),
@@ -311,7 +311,7 @@ class UsersController(BaseController):
         description = request.POST.get('description')
         ApiKeyModel().create(c.user.user_id, description, lifetime)
         Session().commit()
-        h.flash(_("Api key successfully created"), category='success')
+        h.flash(_("API key successfully created"), category='success')
         return redirect(url('edit_user_api_keys', id=c.user.user_id))
 
     def delete_api_key(self, id):
@@ -327,11 +327,11 @@ class UsersController(BaseController):
                 user.api_key = generate_api_key(user.username)
                 Session().add(user)
                 Session().commit()
-                h.flash(_("Api key successfully reset"), category='success')
+                h.flash(_("API key successfully reset"), category='success')
         elif api_key:
             ApiKeyModel().delete(api_key, c.user.user_id)
             Session().commit()
-            h.flash(_("Api key successfully deleted"), category='success')
+            h.flash(_("API key successfully deleted"), category='success')
 
         return redirect(url('edit_user_api_keys', id=c.user.user_id))
 
@@ -479,7 +479,7 @@ class UsersController(BaseController):
         try:
             user_model.add_extra_ip(id, ip)
             Session().commit()
-            h.flash(_("Added ip %s to user whitelist") % ip, category='success')
+            h.flash(_("Added IP address %s to user whitelist") % ip, category='success')
         except formencode.Invalid, error:
             msg = error.error_dict['ip']
             h.flash(msg, category='error')
@@ -499,7 +499,7 @@ class UsersController(BaseController):
         user_model = UserModel()
         user_model.delete_extra_ip(id, ip_id)
         Session().commit()
-        h.flash(_("Removed ip address from user whitelist"), category='success')
+        h.flash(_("Removed IP address from user whitelist"), category='success')
 
         if 'default_user' in request.POST:
             return redirect(url('admin_permissions_ips'))

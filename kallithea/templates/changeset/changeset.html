@@ -33,21 +33,21 @@ ${self.repo_context_bar('changelog', c.changeset.raw_id)}
         <div class="diffblock">
             <div class="parents">
                 <div id="parent_link" class="changeset_hash">
-                    <i style="color:#036185" class="icon-left-open"></i> <a href="#">${_('parent rev.')}</a>
+                    <i style="color:#036185" class="icon-left-open"></i> <a href="#">${_('Parent rev.')}</a>
                 </div>
             </div>
 
             <div class="children">
                 <div id="child_link" class="changeset_hash">
-                    <a href="#">${_('child rev.')}</a> <i style="color:#036185" class="icon-right-open"></i>
+                    <a href="#">${_('Child rev.')}</a> <i style="color:#036185" class="icon-right-open"></i>
                 </div>
             </div>
 
             <div class="code-header banner">
                 <div class="changeset-status-container">
                     %if c.statuses:
-                        <div class="changeset-status-ico"><i class="icon-circle changeset-status-${c.statuses[0]}"></i></div>
-                        <div title="${_('Changeset status')}" class="changeset-status-lbl">[${h.changeset_status_lbl(c.statuses[0])}]</div>
+                        <span class="changeset-status-ico"><i class="icon-circle changeset-status-${c.statuses[0]}"></i></span>
+                        <span title="${_('Changeset status')}" class="changeset-status-lbl">[${h.changeset_status_lbl(c.statuses[0])}]</span>
                     %endif
                 </div>
                 <div class="diff-actions">
@@ -86,7 +86,7 @@ ${self.repo_context_bar('changelog', c.changeset.raw_id)}
 
                     <span class="logtags">
                         %if len(c.changeset.parents)>1:
-                        <span class="merge">${_('merge')}</span>
+                        <span class="merge">${_('Merge')}</span>
                         %endif
 
                         %if h.is_hg(c.db_repo_scm_instance):
@@ -205,7 +205,7 @@ ${self.repo_context_bar('changelog', c.changeset.raw_id)}
           var file_comments = $('.inline-comment-placeholder').toArray();
           renderInlineComments(file_comments);
 
-          linkInlineComments(document.getElementsByClassName('firstlink'), document.getElementsByClassName("comment"));
+          linkInlineComments($('.firstlink'), $('.comment'));
 
           pyroutes.register('changeset_home',
                             "${h.url('changeset_home', repo_name='%(repo_name)s', revision='%(revision)s')}",
@@ -221,7 +221,7 @@ ${self.repo_context_bar('changelog', c.changeset.raw_id)}
                     success: function(data) {
                       if(data.results.length === 0){
                           $('#child_link').addClass('disabled');
-                          $('#child_link').html('${_('no revisions')}');
+                          $('#child_link').html('${_('No revisions')}');
                       }
                       if(data.results.length === 1){
                           var commit = data.results[0];
@@ -246,7 +246,7 @@ ${self.repo_context_bar('changelog', c.changeset.raw_id)}
                   });
               e.preventDefault();
               }
-          })
+          });
 
           //prev links
           $('#parent_link').on('click', function(e){
@@ -258,7 +258,7 @@ ${self.repo_context_bar('changelog', c.changeset.raw_id)}
                     success: function(data) {
                       if(data.results.length === 0){
                           $('#parent_link').addClass('disabled');
-                          $('#parent_link').html('${_('no revisions')}');
+                          $('#parent_link').html('${_('No revisions')}');
                       }
                       if(data.results.length === 1){
                           var commit = data.results[0];
@@ -289,7 +289,7 @@ ${self.repo_context_bar('changelog', c.changeset.raw_id)}
           if (window.location.hash != "") {
               window.location.href = window.location.href;
           }
-      })
+      });
 
     </script>
 

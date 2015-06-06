@@ -372,7 +372,6 @@ function asynchtml(url, $target, success, args){
         .fail(function(jqXHR, textStatus, errorThrown) {
                 if (textStatus == "abort")
                     return;
-                console.log('Ajax failure: ' + textStatus);
                 $target.html('<span class="error_red">ERROR: {0}</span>'.format(textStatus));
                 $target.css('opacity','1.0');
             })
@@ -851,10 +850,9 @@ var renderInlineComments = function(file_comments){
 /**
  * Double link comments
  */
-var linkInlineComments = function(firstlinks, comments){
-    var $comments = $(comments);
+var linkInlineComments = function($firstlinks, $comments){
     if ($comments.length > 0) {
-        $(firstlinks).html('<a href="#{0}">First comment</a>'.format($comments.attr('id')));
+        $firstlinks.html('<a href="#{0}">First comment</a>'.format($comments.attr('id')));
     }
     if ($comments.length <= 1) {
         return;
@@ -863,18 +861,17 @@ var linkInlineComments = function(firstlinks, comments){
     $comments.each(function(i, e){
             var prev = '';
             if (i > 0){
-                var prev_anchor = YUD.getAttribute(comments.item(i-1),'id');
+                var prev_anchor = $($comments.get(i-1)).attr('id');
                 prev = '<a href="#{0}">Previous comment</a>'.format(prev_anchor);
             }
             var next = '';
-            if (i+1 < comments.length){
-                var next_anchor = YUD.getAttribute(comments.item(i+1),'id');
+            if (i+1 < $comments.length){
+                var next_anchor = $($comments.get(i+1)).attr('id');
                 next = '<a href="#{0}">Next comment</a>'.format(next_anchor);
             }
-            var $div = $(('<div class="prev-next-comment">'+
-                          '<div class="prev-comment">{0}</div>'+
-                          '<div class="next-comment">{1}</div>').format(prev, next));
-            $div.prependTo(this);
+            $(this).find('.comment-prev-next-links').html(
+                '<div class="prev-comment">{0}</div>'.format(prev) +
+                '<div class="next-comment">{0}</div>'.format(next));
         });
 }
 
@@ -914,7 +911,7 @@ var fileBrowserListeners = function(current_url, node_list_url, url_base){
                     }
                 })
             .fail(function() {
-                    console.log('failed to load');
+                    console.log('fileBrowserListeners initFilter failed to load');
                 })
         ;
     }
@@ -2063,7 +2060,7 @@ var YUI_paginator = function(links_per_page, containers){
         nextPageLinkLabel: '&gt;',
         previousPageLinkLabel: '&lt;',
         containers:containers
-    })
+    });
 
     return pagi
 }

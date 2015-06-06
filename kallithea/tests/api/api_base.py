@@ -88,7 +88,7 @@ def make_repo_group(name=TEST_REPO_GROUP):
     return gr
 
 
-class BaseTestApi(object):
+class _BaseTestApi(object):
     REPO = None
     REPO_TYPE = None
 
@@ -166,7 +166,7 @@ class BaseTestApi(object):
         id_, params = _build_data('trololo', 'get_user')
         response = api_call(self, params)
 
-        expected = 'Invalid API KEY'
+        expected = 'Invalid API key'
         self._compare_error(id_, expected, given=response.body)
 
     def test_api_missing_non_optional_param(self):

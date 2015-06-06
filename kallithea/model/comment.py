@@ -63,10 +63,6 @@ class ChangesetCommentsModel(BaseModel):
                                line_no=None, revision=None, pull_request=None,
                                status_change=None, closing_pr=False):
         """
-        Get notification data
-
-        :param comment_text:
-        :param line:
         :returns: tuple (subj,body,recipients,notification_type,email_kwargs)
         """
         # make notification
@@ -130,9 +126,9 @@ class ChangesetCommentsModel(BaseModel):
             comment_url = pull_request.url(canonical=True,
                 anchor='comment-%s' % comment.comment_id)
             subj = safe_unicode(
-                h.link_to('Re pull request #%(pr_id)s: %(desc)s %(line)s' % \
+                h.link_to('Re pull request %(pr_nice_id)s: %(desc)s %(line)s' % \
                           {'desc': desc,
-                           'pr_id': comment.pull_request.pull_request_id,
+                           'pr_nice_id': comment.pull_request.nice_id(),
                            'line': line},
                           comment_url)
             )
@@ -148,7 +144,7 @@ class ChangesetCommentsModel(BaseModel):
             #set some variables for email notification
             email_kwargs = {
                 'pr_title': pull_request.title,
-                'pr_id': pull_request.pull_request_id,
+                'pr_nice_id': pull_request.nice_id(),
                 'status_change': status_change,
                 'closing_pr': closing_pr,
                 'pr_comment_url': comment_url,
@@ -167,22 +163,12 @@ class ChangesetCommentsModel(BaseModel):
                f_path=None, line_no=None, status_change=None, closing_pr=False,
                send_email=True):
         """
-        Creates new comment for changeset or pull request.
-        If status_change is not None this comment is associated with a
-        status change of changeset or changesets associated with pull request
+        Creates a new comment for either a changeset or a pull request.
+        status_change and closing_pr is only for the optional email.
 
-        :param text:
-        :param repo:
-        :param user:
-        :param revision:
-        :param pull_request: (for emails, not for comments)
-        :param f_path:
-        :param line_no:
-        :param status_change: (for emails, not for comments)
-        :param closing_pr: (for emails, not for comments)
-        :param send_email: also send email
+        Returns the created comment.
         """
-        if not text:
+        if not status_change and not text:
             log.warning('Missing text for comment, skipping...')
             return
 
@@ -239,11 +225,6 @@ class ChangesetCommentsModel(BaseModel):
         return comment
 
     def delete(self, comment):
-        """
-        Deletes given comment
-
-        :param comment_id:
-        """
         comment = self.__get_changeset_comment(comment)
         Session().delete(comment)
 
@@ -251,46 +232,47 @@ class ChangesetCommentsModel(BaseModel):
 
     def get_comments(self, repo_id, revision=None, pull_request=None):
         """
-        Gets main comments based on revision or pull_request_id
+        Gets general comments for either revision or pull_request.
 
-        :param repo_id:
-        :param revision:
-        :param pull_request:
+        Returns a list, ordered by creation date.
         """
-
-        q = ChangesetComment.query()\
-                .filter(ChangesetComment.repo_id == repo_id)\
-                .filter(ChangesetComment.line_no == None)\
-                .filter(ChangesetComment.f_path == None)
-        if revision:
-            q = q.filter(ChangesetComment.revision == revision)
-        elif pull_request:
-            pull_request = self.__get_pull_request(pull_request)
-            q = q.filter(ChangesetComment.pull_request == pull_request)
-        else:
-            raise Exception('Please specify revision or pull_request')
-        q = q.order_by(ChangesetComment.created_on)
-        return q.all()
+        return self._get_comments(repo_id, revision=revision, pull_request=pull_request,
+                                  inline=False)
 
     def get_inline_comments(self, repo_id, revision=None, pull_request=None):
-        q = Session().query(ChangesetComment)\
-            .filter(ChangesetComment.repo_id == repo_id)\
-            .filter(ChangesetComment.line_no != None)\
-            .filter(ChangesetComment.f_path != None)\
-            .order_by(ChangesetComment.comment_id.asc())\
+        """
+        Gets inline comments for either revision or pull_request.
 
-        if revision:
-            q = q.filter(ChangesetComment.revision == revision)
-        elif pull_request:
-            pull_request = self.__get_pull_request(pull_request)
-            q = q.filter(ChangesetComment.pull_request == pull_request)
-        else:
-            raise Exception('Please specify revision or pull_request_id')
-
-        comments = q.all()
+        Returns a list of tuples with file path and list of comments per line number.
+        """
+        comments = self._get_comments(repo_id, revision=revision, pull_request=pull_request,
+                                      inline=True)
 
         paths = defaultdict(lambda: defaultdict(list))
-
         for co in comments:
             paths[co.f_path][co.line_no].append(co)
         return paths.items()
+
+    def _get_comments(self, repo_id, revision=None, pull_request=None, inline=False):
+        """
+        Gets comments for either revision or pull_request_id, either inline or general.
+        """
+        q = Session().query(ChangesetComment)\
+            .filter(ChangesetComment.repo_id == repo_id)
+
+        if inline:
+            q = q.filter(ChangesetComment.line_no != None)\
+                .filter(ChangesetComment.f_path != None)
+        else:
+            q = q.filter(ChangesetComment.line_no == None)\
+                .filter(ChangesetComment.f_path == None)
+
+        if revision:
+            q = q.filter(ChangesetComment.revision == revision)
+        elif pull_request:
+            pull_request = self.__get_pull_request(pull_request)
+            q = q.filter(ChangesetComment.pull_request == pull_request)
+        else:
+            raise Exception('Please specify either revision or pull_request')
+
+        return q.order_by(ChangesetComment.created_on).all()
