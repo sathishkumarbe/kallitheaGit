@@ -1,0 +1,73 @@
+## -*- coding: utf-8 -*-
+<%inherit file="base/root.html"/>
+
+<%block name="title">
+    ${_('Log In')}
+</%block>
+
+<div id="login" class="panel panel-default">
+    <%include file="/base/flash_msg.html"/>
+    <!-- login -->
+    <div class="panel-heading title withlogo">
+        %if c.site_name:
+            <h5>${_('Log In to %s') % c.site_name}</h5>
+        %else:
+            <h5>${_('Log In')}</h5>
+        %endif
+    </div>
+    <div class="panel-body inner">
+        ${h.form(h.url.current(**request.GET))}
+        <div class="form">
+            <i class="icon-lock"></i>
+            <!-- fields -->
+
+            <div class="form-horizontal">
+                <div class="form-group">
+                    <label class="control-label col-sm-5" for="username">${_('Username')}:</label>
+                    <div class="input col-sm-7">
+                        ${h.text('username',class_='form-control focus large')}
+                    </div>
+
+                </div>
+                <div class="form-group">
+                    <label class="control-label col-sm-5" for="password">${_('Password')}:</label>
+                    <div class="input col-sm-7">
+                        ${h.password('password',class_='form-control focus large')}
+                    </div>
+
+                </div>
+                <div class="form-group">
+                    <div class="col-sm-offset-5 col-sm-7">
+                        <div class="checkbox">
+                            <label for="remember">
+                                <input type="checkbox" id="remember" name="remember"/>
+                                ${_('Remember me')}
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- end fields -->
+            <!-- links -->
+            <div class="links">
+                ${h.link_to(_('Forgot your password ?'),h.url('reset_password'))}
+                %if h.HasPermissionAny('hg.admin', 'hg.register.auto_activate', 'hg.register.manual_activate')():
+                  /
+                 ${h.link_to(_("Don't have an account ?"),h.url('register'))}
+                %endif
+                <span class="buttons">
+                    ${h.submit('sign_in',_('Sign In'),class_="btn btn-default")}
+                </span>
+            </div>
+
+            <!-- end links -->
+        </div>
+        ${h.end_form()}
+        <script type="text/javascript">
+        $(document).ready(function(){
+            $('#username').focus();
+        });
+        </script>
+    </div>
+    <!-- end login -->
+</div>
