@@ -40,7 +40,6 @@ import paste.httpheaders
 
 from pylons import config, tmpl_context as c, request, session, url
 from pylons.controllers import WSGIController
-from pylons.controllers.util import redirect
 from pylons.templating import render_mako as render  # don't remove this import
 from pylons.i18n.translation import _
 
@@ -117,7 +116,9 @@ def log_in_user(user, remember, is_external_auth):
 
     auth_user = AuthUser(dbuser=user,
                          is_external_auth=is_external_auth)
-    auth_user.set_authenticated()
+    # It should not be possible to explicitly log in as the default user.
+    assert not auth_user.is_default_user
+    auth_user.is_authenticated = True
 
     # Start new session to prevent session fixation attacks.
     session.invalidate()
@@ -392,7 +393,9 @@ class BaseController(WSGIController):
         # Authenticate by session cookie
         # In ancient login sessions, 'authuser' may not be a dict.
         # In that case, the user will have to log in again.
-        if isinstance(session_authuser, dict):
+        # v0.3 and earlier included an 'is_authenticated' key; if present,
+        # this must be True.
+        if isinstance(session_authuser, dict) and session_authuser.get('is_authenticated', True):
             try:
                 return AuthUser.from_cookie(session_authuser)
             except UserCreationError as e:
@@ -479,7 +482,7 @@ class BaseRepoController(BaseController):
                 if route in ['repo_creating_home']:
                     return
                 check_url = url('repo_creating_home', repo_name=c.repo_name)
-                return redirect(check_url)
+                raise webob.exc.HTTPFound(location=check_url)
 
             dbr = c.db_repo = _dbr
             c.db_repo_scm_instance = c.db_repo.scm_instance

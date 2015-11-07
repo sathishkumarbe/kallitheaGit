@@ -35,12 +35,12 @@ import collections
 from decorator import decorator
 
 from pylons import url, request, session
-from pylons.controllers.util import abort, redirect
 from pylons.i18n.translation import _
 from webhelpers.pylonslib import secure_form
 from sqlalchemy import or_
 from sqlalchemy.orm.exc import ObjectDeletedError
 from sqlalchemy.orm import joinedload
+from webob.exc import HTTPFound, HTTPBadRequest, HTTPForbidden, HTTPMethodNotAllowed
 
 from kallithea import __platform__, is_windows, is_unix
 from kallithea.lib.vcs.utils.lazy import LazyProperty
@@ -465,8 +465,7 @@ class AuthUser(object):
     access to Kallithea is enabled, the default user is loaded instead.
 
     `AuthUser` does not by itself authenticate users and the constructor
-    sets the `is_authenticated` field to False, except when falling back
-    to the default anonymous user (if enabled). It's up to other parts
+    sets the `is_authenticated` field to False. It's up to other parts
     of the code to check e.g. if a supplied password is correct, and if
     so, set `is_authenticated` to True.
 
@@ -508,9 +507,7 @@ class AuthUser(object):
         if not is_user_loaded:
             is_user_loaded =  self._fill_data(self.anonymous_user)
 
-        # The anonymous user is always "logged in".
-        if self.user_id == self.anonymous_user.user_id:
-            self.is_authenticated = True
+        self.is_default_user = (self.user_id == self.anonymous_user.user_id)
 
         if not self.username:
             self.username = 'None'
@@ -623,17 +620,12 @@ class AuthUser(object):
 
     def __repr__(self):
         return "<AuthUser('id:%s[%s] auth:%s')>"\
-            % (self.user_id, self.username, self.is_authenticated)
-
-    def set_authenticated(self, authenticated=True):
-        if self.user_id != self.anonymous_user.user_id:
-            self.is_authenticated = authenticated
+            % (self.user_id, self.username, (self.is_authenticated or self.is_default_user))
 
     def to_cookie(self):
         """ Serializes this login session to a cookie `dict`. """
         return {
             'user_id': self.user_id,
-            'is_authenticated': self.is_authenticated,
             'is_external_auth': self.is_external_auth,
         }
 
@@ -647,9 +639,7 @@ class AuthUser(object):
             user_id=cookie.get('user_id'),
             is_external_auth=cookie.get('is_external_auth', False),
         )
-        if not au.is_authenticated and au.user_id is not None:
-            # user is not authenticated and not empty
-            au.set_authenticated(cookie.get('is_authenticated'))
+        au.is_authenticated = True
         return au
 
     @classmethod
@@ -716,7 +706,7 @@ def redirect_to_login(message=None):
     if message:
         h.flash(h.literal(message), category='warning')
     log.debug('Redirecting to login page, origin: %s', p)
-    return redirect(url('login_home', came_from=p))
+    raise HTTPFound(location=url('login_home', came_from=p))
 
 
 class LoginRequired(object):
@@ -758,13 +748,13 @@ class LoginRequired(object):
             else:
                 # controller does not allow API access
                 log.warning('API access to %s is not allowed', loc)
-                return abort(403)
+                raise HTTPForbidden()
 
         # Only allow the following HTTP request methods. (We sometimes use POST
         # requests with a '_method' set to 'PUT' or 'DELETE'; but that is only
         # used for the route lookup, and does not affect request.method.)
         if request.method not in ['GET', 'HEAD', 'POST', 'PUT']:
-            return abort(405)
+            raise HTTPMethodNotAllowed()
 
         # Make sure CSRF token never appears in the URL. If so, invalidate it.
         if secure_form.token_key in request.GET:
@@ -785,17 +775,17 @@ class LoginRequired(object):
             token = request.POST.get(secure_form.token_key)
             if not token or token != secure_form.authentication_token():
                 log.error('CSRF check failed')
-                return abort(403)
+                raise HTTPForbidden()
 
         # WebOb already ignores request payload parameters for anything other
         # than POST/PUT, but double-check since other Kallithea code relies on
         # this assumption.
         if request.method not in ['POST', 'PUT'] and request.POST:
             log.error('%r request with payload parameters; WebOb should have stopped this', request.method)
-            return abort(400)
+            raise HTTPBadRequest()
 
         # regular user authentication
-        if user.is_authenticated:
+        if user.is_authenticated or user.is_default_user:
             log.info('user %s authenticated with regular auth @ %s', user, loc)
             return func(*fargs, **fkwargs)
         else:
@@ -816,9 +806,7 @@ class NotAnonymous(object):
 
         log.debug('Checking if user is not anonymous @%s', cls)
 
-        anonymous = self.user.username == User.DEFAULT_USER
-
-        if anonymous:
+        if self.user.is_default_user:
             return redirect_to_login(_('You need to be a registered user to '
                     'perform this action'))
         else:
@@ -848,13 +836,10 @@ class PermsDecorator(object):
 
         else:
             log.debug('Permission denied for %s %s', cls, self.user)
-            anonymous = self.user.username == User.DEFAULT_USER
-
-            if anonymous:
+            if self.user.is_default_user:
                 return redirect_to_login(_('You need to be signed in to view this page'))
             else:
-                # redirect with forbidden ret code
-                return abort(403)
+                raise HTTPForbidden()
 
     def check_permissions(self):
         """Dummy function for overriding"""
