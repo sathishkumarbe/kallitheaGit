@@ -346,7 +346,7 @@ information check out the Kallithea logs, any error messages sent from LDAP
 will be saved there.
 
 Active Directory
-''''''''''''''''
+^^^^^^^^^^^^^^^^
 
 Kallithea can use Microsoft Active Directory for user authentication.  This
 is done through an LDAP or LDAPS connection to Active Directory.  The
@@ -383,7 +383,7 @@ It's also possible for an administrator to create accounts and configure their
 permissions before the user logs in for the first time, using the :ref:`create-user` API.
 
 Container-based authentication
-''''''''''''''''''''''''''''''
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 In a container-based authentication setup, Kallithea reads the user name from
 the ``REMOTE_USER`` server variable provided by the WSGI container.
@@ -393,7 +393,7 @@ to configure it to require authentication on the location configured for
 Kallithea.
 
 Proxy pass-through authentication
-'''''''''''''''''''''''''''''''''
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 In a proxy pass-through authentication setup, Kallithea reads the user name
 from the ``X-Forwarded-User`` request header, which should be configured to be
@@ -745,11 +745,6 @@ Or if using a dispatcher WSGI script with proper virtualenv activation:
 .. note::
    When running apache as root, please make sure it doesn't run Kallithea as
    root, for examply by adding: ``user=www-data group=www-data`` to the configuration.
-
-.. note::
-   If running Kallithea in multiprocess mode,
-   make sure you set ``instance_id = *`` in the configuration so each process
-   gets it's own cache invalidation key.
 
 Example WSGI dispatch script:
 

@@ -33,9 +33,9 @@ import shutil
 
 from pylons import request, response, tmpl_context as c, url
 from pylons.i18n.translation import _
-from pylons.controllers.util import redirect
-from kallithea.lib.utils import jsonify, action_logger
+from webob.exc import HTTPFound
 
+from kallithea.lib.utils import jsonify, action_logger
 from kallithea.lib import diffs
 from kallithea.lib import helpers as h
 
@@ -92,7 +92,7 @@ class FilesController(BaseRepoController):
             h.flash(h.literal(_('There are no files yet. %s') % add_new),
                     category='warning')
             raise HTTPNotFound()
-        except(ChangesetDoesNotExistError, LookupError), e:
+        except (ChangesetDoesNotExistError, LookupError):
             msg = _('Such revision does not exist for this repository')
             h.flash(msg, category='error')
             raise HTTPNotFound()
@@ -112,7 +112,7 @@ class FilesController(BaseRepoController):
             file_node = cs.get_node(path)
             if file_node.is_dir():
                 raise RepositoryError('given path is a directory')
-        except(ChangesetDoesNotExistError,), e:
+        except ChangesetDoesNotExistError:
             msg = _('Such revision does not exist for this repository')
             h.flash(msg, category='error')
             raise HTTPNotFound()
@@ -137,6 +137,7 @@ class FilesController(BaseRepoController):
         c.f_path = f_path
         c.annotate = annotate
         cur_rev = c.changeset.revision
+        c.fulldiff = request.GET.get('fulldiff')
 
         # prev link
         try:
@@ -306,7 +307,7 @@ class FilesController(BaseRepoController):
                 % (h.person_by_id(repo.locked[0]),
                    h.fmt_date(h.time_to_datetime(repo.locked[1]))),
                 'warning')
-            return redirect(h.url('files_home',
+            raise HTTPFound(location=h.url('files_home',
                                   repo_name=repo_name, revision='tip'))
 
         # check if revision is a branch identifier- basically we cannot
@@ -316,7 +317,7 @@ class FilesController(BaseRepoController):
         if revision not in _branches.keys() + _branches.values():
             h.flash(_('You can only delete files with revision '
                       'being a valid branch'), category='warning')
-            return redirect(h.url('files_home',
+            raise HTTPFound(location=h.url('files_home',
                                   repo_name=repo_name, revision='tip',
                                   f_path=f_path))
 
@@ -352,7 +353,7 @@ class FilesController(BaseRepoController):
             except Exception:
                 log.error(traceback.format_exc())
                 h.flash(_('Error occurred during commit'), category='error')
-            return redirect(url('changeset_home',
+            raise HTTPFound(location=url('changeset_home',
                                 repo_name=c.repo_name, revision='tip'))
 
         return render('files/files_delete.html')
@@ -366,7 +367,7 @@ class FilesController(BaseRepoController):
                 % (h.person_by_id(repo.locked[0]),
                    h.fmt_date(h.time_to_datetime(repo.locked[1]))),
                 'warning')
-            return redirect(h.url('files_home',
+            raise HTTPFound(location=h.url('files_home',
                                   repo_name=repo_name, revision='tip'))
 
         # check if revision is a branch identifier- basically we cannot
@@ -376,7 +377,7 @@ class FilesController(BaseRepoController):
         if revision not in _branches.keys() + _branches.values():
             h.flash(_('You can only edit files with revision '
                       'being a valid branch'), category='warning')
-            return redirect(h.url('files_home',
+            raise HTTPFound(location=h.url('files_home',
                                   repo_name=repo_name, revision='tip',
                                   f_path=f_path))
 
@@ -386,7 +387,7 @@ class FilesController(BaseRepoController):
         c.file = self.__get_filenode(c.cs, f_path)
 
         if c.file.is_binary:
-            return redirect(url('files_home', repo_name=c.repo_name,
+            raise HTTPFound(location=url('files_home', repo_name=c.repo_name,
                             revision=c.cs.raw_id, f_path=f_path))
         c.default_message = _('Edited file %s via Kallithea') % (f_path)
         c.f_path = f_path
@@ -405,7 +406,7 @@ class FilesController(BaseRepoController):
 
             if content == old_content:
                 h.flash(_('No changes'), category='warning')
-                return redirect(url('changeset_home', repo_name=c.repo_name,
+                raise HTTPFound(location=url('changeset_home', repo_name=c.repo_name,
                                     revision='tip'))
             try:
                 self.scm_model.commit_change(repo=c.db_repo_scm_instance,
@@ -418,7 +419,7 @@ class FilesController(BaseRepoController):
             except Exception:
                 log.error(traceback.format_exc())
                 h.flash(_('Error occurred during commit'), category='error')
-            return redirect(url('changeset_home',
+            raise HTTPFound(location=url('changeset_home',
                                 repo_name=c.repo_name, revision='tip'))
 
         return render('files/files_edit.html')
@@ -433,7 +434,7 @@ class FilesController(BaseRepoController):
                 % (h.person_by_id(repo.locked[0]),
                    h.fmt_date(h.time_to_datetime(repo.locked[1]))),
                   'warning')
-            return redirect(h.url('files_home',
+            raise HTTPFound(location=h.url('files_home',
                                   repo_name=repo_name, revision='tip'))
 
         r_post = request.POST
@@ -462,11 +463,11 @@ class FilesController(BaseRepoController):
 
             if not content:
                 h.flash(_('No content'), category='warning')
-                return redirect(url('changeset_home', repo_name=c.repo_name,
+                raise HTTPFound(location=url('changeset_home', repo_name=c.repo_name,
                                     revision='tip'))
             if not filename:
                 h.flash(_('No filename'), category='warning')
-                return redirect(url('changeset_home', repo_name=c.repo_name,
+                raise HTTPFound(location=url('changeset_home', repo_name=c.repo_name,
                                     revision='tip'))
             #strip all crap out of file, just leave the basename
             filename = os.path.basename(filename)
@@ -492,14 +493,14 @@ class FilesController(BaseRepoController):
             except NonRelativePathError as e:
                 h.flash(_('Location must be relative path and must not '
                           'contain .. in path'), category='warning')
-                return redirect(url('changeset_home', repo_name=c.repo_name,
+                raise HTTPFound(location=url('changeset_home', repo_name=c.repo_name,
                                     revision='tip'))
             except (NodeError, NodeAlreadyExistsError) as e:
                 h.flash(_(e), category='error')
             except Exception:
                 log.error(traceback.format_exc())
                 h.flash(_('Error occurred during commit'), category='error')
-            return redirect(url('changeset_home',
+            raise HTTPFound(location=url('changeset_home',
                                 repo_name=c.repo_name, revision='tip'))
 
         return render('files/files_add.html')
@@ -620,7 +621,7 @@ class FilesController(BaseRepoController):
                 _url = url('files_home', repo_name=c.repo_name,
                            revision=diff1, f_path=c.f_path)
 
-            return redirect(_url)
+            raise HTTPFound(location=_url)
         try:
             if diff1 not in ['', None, 'None', '0' * 12, '0' * 40]:
                 c.changeset_1 = c.db_repo_scm_instance.get_changeset(diff1)
@@ -655,7 +656,7 @@ class FilesController(BaseRepoController):
                 node2 = FileNode(f_path, '', changeset=c.changeset_2)
         except (RepositoryError, NodeError):
             log.error(traceback.format_exc())
-            return redirect(url('files_home', repo_name=c.repo_name,
+            raise HTTPFound(location=url('files_home', repo_name=c.repo_name,
                                 f_path=f_path))
 
         if c.action == 'download':

@@ -30,11 +30,11 @@ Original author and date, and relevant copyright and licensing information is be
 import logging
 import re
 
-from webob.exc import HTTPBadRequest
 from pylons import request, tmpl_context as c, url
-from pylons.controllers.util import redirect
 from pylons.i18n.translation import _
+from webob.exc import HTTPFound, HTTPBadRequest
 
+from kallithea.lib.utils2 import safe_str
 from kallithea.lib.vcs.utils.hgcompat import unionrepo
 from kallithea.lib import helpers as h
 from kallithea.lib.base import BaseRepoController, render
@@ -114,10 +114,10 @@ class CompareController(BaseRepoController):
                 from dulwich.client import SubprocessGitClient
 
                 gitrepo = Repo(org_repo.path)
-                SubprocessGitClient(thin_packs=False).fetch(other_repo.path, gitrepo)
+                SubprocessGitClient(thin_packs=False).fetch(safe_str(other_repo.path), gitrepo)
 
                 gitrepo_remote = Repo(other_repo.path)
-                SubprocessGitClient(thin_packs=False).fetch(org_repo.path, gitrepo_remote)
+                SubprocessGitClient(thin_packs=False).fetch(safe_str(org_repo.path), gitrepo_remote)
 
                 revs = []
                 for x in gitrepo_remote.get_walker(include=[other_rev],
@@ -206,19 +206,19 @@ class CompareController(BaseRepoController):
             msg = 'Could not find org repo %s' % org_repo
             log.error(msg)
             h.flash(msg, category='error')
-            return redirect(url('compare_home', repo_name=c.repo_name))
+            raise HTTPFound(location=url('compare_home', repo_name=c.repo_name))
 
         if other_repo is None:
             msg = 'Could not find other repo %s' % other_repo
             log.error(msg)
             h.flash(msg, category='error')
-            return redirect(url('compare_home', repo_name=c.repo_name))
+            raise HTTPFound(location=url('compare_home', repo_name=c.repo_name))
 
         if org_repo.scm_instance.alias != other_repo.scm_instance.alias:
             msg = 'compare of two different kind of remote repos not available'
             log.error(msg)
             h.flash(msg, category='error')
-            return redirect(url('compare_home', repo_name=c.repo_name))
+            raise HTTPFound(location=url('compare_home', repo_name=c.repo_name))
 
         c.a_rev = self._get_ref_rev(org_repo, org_ref_type, org_ref_name,
             returnempty=True)
