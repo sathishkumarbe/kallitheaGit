@@ -57,9 +57,9 @@ class HomeController(BaseController):
         c.groups = self.scm_model.get_repo_groups()
         c.group = None
 
-        c.repos_list = Repository.query()\
-                        .filter(Repository.group_id == None)\
-                        .order_by(func.lower(Repository.repo_name))\
+        c.repos_list = Repository.query() \
+                        .filter(Repository.group_id == None) \
+                        .order_by(func.lower(Repository.repo_name)) \
                         .all()
 
         repos_data = RepoModel().get_repos_as_dict(repos_list=c.repos_list,
@@ -129,6 +129,12 @@ class HomeController(BaseController):
             res.append({
                 'text': _('Branch'),
                 'children': [{'id': rev, 'text': name, 'type': 'branch'} for name, rev in _branches]
+            })
+        _closed_branches = repo.closed_branches.items()
+        if _closed_branches:
+            res.append({
+                'text': _('Closed Branches'),
+                'children': [{'id': rev, 'text': name, 'type': 'closed-branch'} for name, rev in _closed_branches]
             })
         _tags = repo.tags.items()
         if _tags:

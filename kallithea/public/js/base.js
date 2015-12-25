@@ -377,15 +377,16 @@ function asynchtml(url, $target, success, args){
         ;
 };
 
-var ajaxGET = function(url,success) {
+var ajaxGET = function(url, success, failure) {
+    if(failure === undefined) {
+        failure = function(jqXHR, textStatus, errorThrown) {
+                if (textStatus != "abort")
+                    alert("Ajax GET error: " + textStatus);
+            };
+    }
     return $.ajax({url: url, headers: {'X-PARTIAL-XHR': '1'}, cache: false})
         .done(success)
-        .fail(function(jqXHR, textStatus, errorThrown) {
-                if (textStatus == "abort")
-                    return;
-                alert("Ajax GET error: " + textStatus);
-        })
-        ;
+        .fail(failure);
 };
 
 var ajaxPOST = function(url, postData, success, failure) {
@@ -913,14 +914,14 @@ var initCodeMirror = function(textarea_id, baseUrl, resetUrl){
             $('#editor_container').show();
             $('#upload_file_container').hide();
             $('#filename_container').show();
-            $('#set_mode_header').show();
+            $('#mimetype_header').show();
         });
 
     $('#upload_file_enable').click(function(){
             $('#editor_container').hide();
             $('#upload_file_container').show();
             $('#filename_container').hide();
-            $('#set_mode_header').hide();
+            $('#mimetype_header').hide();
         });
 
     return myCodeMirror
@@ -1859,8 +1860,39 @@ var branchSort = function(results, container, query) {
             }
 
             // Put prefix matches before matches in the line
-            var aPos = a.text.indexOf(query.term),
-                bPos = b.text.indexOf(query.term);
+            var aPos = a.text.toLowerCase().indexOf(query.term.toLowerCase()),
+                bPos = b.text.toLowerCase().indexOf(query.term.toLowerCase());
+            if (aPos === 0 && bPos !== 0) {
+                return -1;
+            }
+            if (bPos === 0 && aPos !== 0) {
+                return 1;
+            }
+
+            // Default sorting
+            if (a.text > b.text) {
+                return 1;
+            }
+            if (a.text < b.text) {
+                return -1;
+            }
+            return 0;
+        });
+    }
+    return results;
+};
+
+var prefixFirstSort = function(results, container, query) {
+    if (query.term) {
+        return results.sort(function (a, b) {
+            // if parent node, no sorting
+            if (a.children != undefined || b.children != undefined) {
+                return 0;
+            }
+
+            // Put prefix matches before matches in the line
+            var aPos = a.text.toLowerCase().indexOf(query.term.toLowerCase()),
+                bPos = b.text.toLowerCase().indexOf(query.term.toLowerCase());
             if (aPos === 0 && bPos !== 0) {
                 return -1;
             }

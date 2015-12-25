@@ -225,7 +225,7 @@ class Setting(Base, BaseModel):
 
     @classmethod
     def get_by_name(cls, key):
-        return cls.query()\
+        return cls.query() \
             .filter(cls.app_settings_name == key).scalar()
 
     @classmethod
@@ -285,7 +285,7 @@ class Setting(Base, BaseModel):
 
     @classmethod
     def get_auth_settings(cls, cache=False):
-        ret = cls.query()\
+        ret = cls.query() \
                 .filter(cls.app_settings_name.startswith('auth_')).all()
         fd = {}
         for row in ret:
@@ -294,7 +294,7 @@ class Setting(Base, BaseModel):
 
     @classmethod
     def get_default_repo_settings(cls, cache=False, strip_prefix=False):
-        ret = cls.query()\
+        ret = cls.query() \
                 .filter(cls.app_settings_name.startswith('default_')).all()
         fd = {}
         for row in ret:
@@ -574,10 +574,10 @@ class User(Base, BaseModel):
 
         if fallback and not res:
             #fallback to additional keys
-            _res = UserApiKeys.query()\
-                .filter(UserApiKeys.api_key == api_key)\
+            _res = UserApiKeys.query() \
+                .filter(UserApiKeys.api_key == api_key) \
                 .filter(or_(UserApiKeys.expires == -1,
-                            UserApiKeys.expires >= time.time()))\
+                            UserApiKeys.expires >= time.time())) \
                 .first()
             if _res:
                 res = _res.user
@@ -946,8 +946,8 @@ class RepositoryField(Base, BaseModel):
 
     @classmethod
     def get_by_key_name(cls, key, repo):
-        row = cls.query()\
-                .filter(cls.repository == repo)\
+        row = cls.query() \
+                .filter(cls.repository == repo) \
                 .filter(cls.field_key == key).scalar()
         return row
 
@@ -1082,8 +1082,8 @@ class Repository(Base, BaseModel):
     @classmethod
     def get_by_repo_name(cls, repo_name):
         q = Session().query(cls).filter(cls.repo_name == repo_name)
-        q = q.options(joinedload(Repository.fork))\
-                .options(joinedload(Repository.user))\
+        q = q.options(joinedload(Repository.fork)) \
+                .options(joinedload(Repository.user)) \
                 .options(joinedload(Repository.group))
         return q.scalar()
 
@@ -1104,7 +1104,7 @@ class Repository(Base, BaseModel):
 
         :param cls:
         """
-        q = Session().query(Ui)\
+        q = Session().query(Ui) \
             .filter(Ui.ui_key == cls.url_sep())
         q = q.options(FromCache("sql_cache_short", "repository_repo_path"))
         return q.one().ui_value
@@ -1173,9 +1173,9 @@ class Repository(Base, BaseModel):
         """
         Returns associated cache keys for that repo
         """
-        return CacheInvalidation.query()\
-            .filter(CacheInvalidation.cache_args == self.repo_name)\
-            .order_by(CacheInvalidation.cache_key)\
+        return CacheInvalidation.query() \
+            .filter(CacheInvalidation.cache_args == self.repo_name) \
+            .order_by(CacheInvalidation.cache_key) \
             .all()
 
     def get_new_name(self, repo_name):
@@ -1377,7 +1377,7 @@ class Repository(Base, BaseModel):
 
         :param revisions: filter query by revisions only
         """
-        cmts = ChangesetComment.query()\
+        cmts = ChangesetComment.query() \
             .filter(ChangesetComment.repo == self)
         if revisions is not None:
             if not revisions:
@@ -1398,9 +1398,9 @@ class Repository(Base, BaseModel):
         if not revisions:
             return {}
 
-        statuses = ChangesetStatus.query()\
-            .filter(ChangesetStatus.repo == self)\
-            .filter(ChangesetStatus.version == 0)\
+        statuses = ChangesetStatus.query() \
+            .filter(ChangesetStatus.repo == self) \
+            .filter(ChangesetStatus.version == 0) \
             .filter(ChangesetStatus.revision.in_(revisions))
 
         grouped = {}
@@ -1527,10 +1527,10 @@ class RepoGroup(Base, BaseModel):
     @classmethod
     def get_by_group_name(cls, group_name, cache=False, case_insensitive=False):
         if case_insensitive:
-            gr = cls.query()\
+            gr = cls.query() \
                 .filter(cls.group_name.ilike(group_name))
         else:
-            gr = cls.query()\
+            gr = cls.query() \
                 .filter(cls.group_name == group_name)
         if cache:
             gr = gr.options(FromCache(
@@ -1582,8 +1582,8 @@ class RepoGroup(Base, BaseModel):
 
     @property
     def repositories(self):
-        return Repository.query()\
-                .filter(Repository.group == self)\
+        return Repository.query() \
+                .filter(Repository.group == self) \
                 .order_by(Repository.repo_name)
 
     @property
@@ -1761,27 +1761,27 @@ class Permission(Base, BaseModel):
 
     @classmethod
     def get_default_perms(cls, default_user_id):
-        q = Session().query(UserRepoToPerm, Repository, cls)\
-         .join((Repository, UserRepoToPerm.repository_id == Repository.repo_id))\
-         .join((cls, UserRepoToPerm.permission_id == cls.permission_id))\
+        q = Session().query(UserRepoToPerm, Repository, cls) \
+         .join((Repository, UserRepoToPerm.repository_id == Repository.repo_id)) \
+         .join((cls, UserRepoToPerm.permission_id == cls.permission_id)) \
          .filter(UserRepoToPerm.user_id == default_user_id)
 
         return q.all()
 
     @classmethod
     def get_default_group_perms(cls, default_user_id):
-        q = Session().query(UserRepoGroupToPerm, RepoGroup, cls)\
-         .join((RepoGroup, UserRepoGroupToPerm.group_id == RepoGroup.group_id))\
-         .join((cls, UserRepoGroupToPerm.permission_id == cls.permission_id))\
+        q = Session().query(UserRepoGroupToPerm, RepoGroup, cls) \
+         .join((RepoGroup, UserRepoGroupToPerm.group_id == RepoGroup.group_id)) \
+         .join((cls, UserRepoGroupToPerm.permission_id == cls.permission_id)) \
          .filter(UserRepoGroupToPerm.user_id == default_user_id)
 
         return q.all()
 
     @classmethod
     def get_default_user_group_perms(cls, default_user_id):
-        q = Session().query(UserUserGroupToPerm, UserGroup, cls)\
-         .join((UserGroup, UserUserGroupToPerm.user_group_id == UserGroup.users_group_id))\
-         .join((cls, UserUserGroupToPerm.permission_id == cls.permission_id))\
+        q = Session().query(UserUserGroupToPerm, UserGroup, cls) \
+         .join((UserGroup, UserUserGroupToPerm.user_group_id == UserGroup.users_group_id)) \
+         .join((cls, UserUserGroupToPerm.permission_id == cls.permission_id)) \
          .filter(UserUserGroupToPerm.user_id == default_user_id)
 
         return q.all()
@@ -2103,7 +2103,7 @@ class CacheInvalidation(Base, BaseModel):
         return "%s%s" % (prefix, key)
 
     @classmethod
-    def set_invalidate(cls, repo_name, delete=False):
+    def set_invalidate(cls, repo_name):
         """
         Mark all caches of a repo as invalid in the database.
         """
@@ -2114,11 +2114,7 @@ class CacheInvalidation(Base, BaseModel):
         for inv_obj in inv_objs:
             log.debug('marking %s key for invalidation based on repo_name=%s',
                       inv_obj, safe_str(repo_name))
-            if delete:
-                Session().delete(inv_obj)
-            else:
-                inv_obj.cache_active = False
-                Session().add(inv_obj)
+            Session().delete(inv_obj)
         Session().commit()
 
     @classmethod
@@ -2197,7 +2193,7 @@ class ChangesetComment(Base, BaseModel):
         :param cls:
         :param revision:
         """
-        q = Session().query(User)\
+        q = Session().query(User) \
                 .join(ChangesetComment.author)
         if revision is not None:
             q = q.filter(cls.revision == revision)
@@ -2324,10 +2320,10 @@ class PullRequest(Base, BaseModel):
     def user_review_status(self, user_id):
         """Return the user's latest status votes on PR"""
         # note: no filtering on repo - that would be redundant
-        status = ChangesetStatus.query()\
-            .filter(ChangesetStatus.pull_request == self)\
-            .filter(ChangesetStatus.user_id == user_id)\
-            .order_by(ChangesetStatus.version)\
+        status = ChangesetStatus.query() \
+            .filter(ChangesetStatus.pull_request == self) \
+            .filter(ChangesetStatus.user_id == user_id) \
+            .order_by(ChangesetStatus.version) \
             .first()
         return str(status.status) if status else ''
 
@@ -2422,11 +2418,15 @@ class Notification(Base, BaseModel):
         notification.type_ = type_
         notification.created_on = datetime.datetime.now()
 
-        for u in recipients:
-            assoc = UserNotification()
-            assoc.notification = notification
-            assoc.user_id = u.user_id
-            Session().add(assoc)
+        for recipient in recipients:
+            un = UserNotification()
+            un.notification = notification
+            un.user_id = recipient.user_id
+            # Mark notifications to self "pre-read" - should perhaps just be skipped
+            if recipient == created_by:
+                un.read = True
+            Session().add(un)
+
         Session().add(notification)
         Session().flush() # assign notificaiton.notification_id
         return notification
@@ -2511,7 +2511,7 @@ class Gist(Base, BaseModel):
         :param cls:
         """
         from kallithea.model.gist import GIST_STORE_LOC
-        q = Session().query(Ui)\
+        q = Session().query(Ui) \
             .filter(Ui.ui_key == URL_SEP)
         q = q.options(FromCache("sql_cache_short", "repository_repo_path"))
         return os.path.join(q.one().ui_value, GIST_STORE_LOC)

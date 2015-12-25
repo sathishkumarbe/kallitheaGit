@@ -35,12 +35,12 @@ import collections
 from decorator import decorator
 
 from pylons import url, request, session
-from pylons.controllers.util import abort, redirect
 from pylons.i18n.translation import _
 from webhelpers.pylonslib import secure_form
 from sqlalchemy import or_
 from sqlalchemy.orm.exc import ObjectDeletedError
 from sqlalchemy.orm import joinedload
+from webob.exc import HTTPFound, HTTPBadRequest, HTTPForbidden, HTTPMethodNotAllowed
 
 from kallithea import __platform__, is_windows, is_unix
 from kallithea.lib.vcs.utils.lazy import LazyProperty
@@ -204,8 +204,8 @@ def _cached_perms_data(user_id, user_is_admin, user_inherit_default_permissions,
     #==================================================================
 
     # default global permissions taken from the default user
-    default_global_perms = UserToPerm.query()\
-        .filter(UserToPerm.user_id == default_user_id)\
+    default_global_perms = UserToPerm.query() \
+        .filter(UserToPerm.user_id == default_user_id) \
         .options(joinedload(UserToPerm.permission))
 
     for perm in default_global_perms:
@@ -251,15 +251,15 @@ def _cached_perms_data(user_id, user_is_admin, user_inherit_default_permissions,
 
     # USER GROUPS comes first
     # user group global permissions
-    user_perms_from_users_groups = Session().query(UserGroupToPerm)\
-        .options(joinedload(UserGroupToPerm.permission))\
+    user_perms_from_users_groups = Session().query(UserGroupToPerm) \
+        .options(joinedload(UserGroupToPerm.permission)) \
         .join((UserGroupMember, UserGroupToPerm.users_group_id ==
-               UserGroupMember.users_group_id))\
-        .filter(UserGroupMember.user_id == user_id)\
+               UserGroupMember.users_group_id)) \
+        .filter(UserGroupMember.user_id == user_id) \
         .join((UserGroup, UserGroupMember.users_group_id ==
-               UserGroup.users_group_id))\
-        .filter(UserGroup.users_group_active == True)\
-        .order_by(UserGroupToPerm.users_group_id)\
+               UserGroup.users_group_id)) \
+        .filter(UserGroup.users_group_active == True) \
+        .order_by(UserGroupToPerm.users_group_id) \
         .all()
     # need to group here by groups since user can be in more than
     # one group
@@ -273,20 +273,20 @@ def _cached_perms_data(user_id, user_is_admin, user_inherit_default_permissions,
         if not gr.inherit_default_permissions:
             # NEED TO IGNORE all configurable permissions and
             # replace them with explicitly set
-            permissions[GLOBAL] = permissions[GLOBAL]\
+            permissions[GLOBAL] = permissions[GLOBAL] \
                                             .difference(_configurable)
         for perm in perms:
             permissions[GLOBAL].add(perm.permission.permission_name)
 
     # user specific global permissions
-    user_perms = Session().query(UserToPerm)\
-            .options(joinedload(UserToPerm.permission))\
+    user_perms = Session().query(UserToPerm) \
+            .options(joinedload(UserToPerm.permission)) \
             .filter(UserToPerm.user_id == user_id).all()
 
     if not user_inherit_default_permissions:
         # NEED TO IGNORE all configurable permissions and
         # replace them with explicitly set
-        permissions[GLOBAL] = permissions[GLOBAL]\
+        permissions[GLOBAL] = permissions[GLOBAL] \
                                         .difference(_configurable)
 
         for perm in user_perms:
@@ -304,17 +304,17 @@ def _cached_perms_data(user_id, user_is_admin, user_inherit_default_permissions,
 
     # user group for repositories permissions
     user_repo_perms_from_users_groups = \
-     Session().query(UserGroupRepoToPerm, Permission, Repository,)\
+     Session().query(UserGroupRepoToPerm, Permission, Repository,) \
         .join((Repository, UserGroupRepoToPerm.repository_id ==
-               Repository.repo_id))\
+               Repository.repo_id)) \
         .join((Permission, UserGroupRepoToPerm.permission_id ==
-               Permission.permission_id))\
+               Permission.permission_id)) \
         .join((UserGroup, UserGroupRepoToPerm.users_group_id ==
-               UserGroup.users_group_id))\
-        .filter(UserGroup.users_group_active == True)\
+               UserGroup.users_group_id)) \
+        .filter(UserGroup.users_group_active == True) \
         .join((UserGroupMember, UserGroupRepoToPerm.users_group_id ==
-               UserGroupMember.users_group_id))\
-        .filter(UserGroupMember.user_id == user_id)\
+               UserGroupMember.users_group_id)) \
+        .filter(UserGroupMember.user_id == user_id) \
         .all()
 
     multiple_counter = collections.defaultdict(int)
@@ -357,16 +357,16 @@ def _cached_perms_data(user_id, user_is_admin, user_inherit_default_permissions,
     #======================================================================
     # user group for repo groups permissions
     user_repo_group_perms_from_users_groups = \
-     Session().query(UserGroupRepoGroupToPerm, Permission, RepoGroup)\
-     .join((RepoGroup, UserGroupRepoGroupToPerm.group_id == RepoGroup.group_id))\
+     Session().query(UserGroupRepoGroupToPerm, Permission, RepoGroup) \
+     .join((RepoGroup, UserGroupRepoGroupToPerm.group_id == RepoGroup.group_id)) \
      .join((Permission, UserGroupRepoGroupToPerm.permission_id
-            == Permission.permission_id))\
+            == Permission.permission_id)) \
      .join((UserGroup, UserGroupRepoGroupToPerm.users_group_id ==
-            UserGroup.users_group_id))\
-     .filter(UserGroup.users_group_active == True)\
+            UserGroup.users_group_id)) \
+     .filter(UserGroup.users_group_active == True) \
      .join((UserGroupMember, UserGroupRepoGroupToPerm.users_group_id
-            == UserGroupMember.users_group_id))\
-     .filter(UserGroupMember.user_id == user_id)\
+            == UserGroupMember.users_group_id)) \
+     .filter(UserGroupMember.user_id == user_id) \
      .all()
 
     multiple_counter = collections.defaultdict(int)
@@ -394,17 +394,17 @@ def _cached_perms_data(user_id, user_is_admin, user_inherit_default_permissions,
     #======================================================================
     # user group for user group permissions
     user_group_user_groups_perms = \
-     Session().query(UserGroupUserGroupToPerm, Permission, UserGroup)\
+     Session().query(UserGroupUserGroupToPerm, Permission, UserGroup) \
      .join((UserGroup, UserGroupUserGroupToPerm.target_user_group_id
-            == UserGroup.users_group_id))\
+            == UserGroup.users_group_id)) \
      .join((Permission, UserGroupUserGroupToPerm.permission_id
-            == Permission.permission_id))\
+            == Permission.permission_id)) \
      .join((UserGroupMember, UserGroupUserGroupToPerm.user_group_id
-            == UserGroupMember.users_group_id))\
-     .filter(UserGroupMember.user_id == user_id)\
+            == UserGroupMember.users_group_id)) \
+     .filter(UserGroupMember.user_id == user_id) \
      .join((UserGroup, UserGroupMember.users_group_id ==
-            UserGroup.users_group_id), aliased=True, from_joinpoint=True)\
-     .filter(UserGroup.users_group_active == True)\
+            UserGroup.users_group_id), aliased=True, from_joinpoint=True) \
+     .filter(UserGroup.users_group_active == True) \
      .all()
 
     multiple_counter = collections.defaultdict(int)
@@ -465,8 +465,7 @@ class AuthUser(object):
     access to Kallithea is enabled, the default user is loaded instead.
 
     `AuthUser` does not by itself authenticate users and the constructor
-    sets the `is_authenticated` field to False, except when falling back
-    to the default anonymous user (if enabled). It's up to other parts
+    sets the `is_authenticated` field to False. It's up to other parts
     of the code to check e.g. if a supplied password is correct, and if
     so, set `is_authenticated` to True.
 
@@ -508,9 +507,7 @@ class AuthUser(object):
         if not is_user_loaded:
             is_user_loaded =  self._fill_data(self.anonymous_user)
 
-        # The anonymous user is always "logged in".
-        if self.user_id == self.anonymous_user.user_id:
-            self.is_authenticated = True
+        self.is_default_user = (self.user_id == self.anonymous_user.user_id)
 
         if not self.username:
             self.username = 'None'
@@ -569,8 +566,8 @@ class AuthUser(object):
 
     def _get_api_keys(self):
         api_keys = [self.api_key]
-        for api_key in UserApiKeys.query()\
-                .filter(UserApiKeys.user_id == self.user_id)\
+        for api_key in UserApiKeys.query() \
+                .filter(UserApiKeys.user_id == self.user_id) \
                 .filter(or_(UserApiKeys.expires == -1,
                             UserApiKeys.expires >= time.time())).all():
             api_keys.append(api_key.api_key)
@@ -622,18 +619,13 @@ class AuthUser(object):
             return False
 
     def __repr__(self):
-        return "<AuthUser('id:%s[%s] auth:%s')>"\
-            % (self.user_id, self.username, self.is_authenticated)
-
-    def set_authenticated(self, authenticated=True):
-        if self.user_id != self.anonymous_user.user_id:
-            self.is_authenticated = authenticated
+        return "<AuthUser('id:%s[%s] auth:%s')>" \
+            % (self.user_id, self.username, (self.is_authenticated or self.is_default_user))
 
     def to_cookie(self):
         """ Serializes this login session to a cookie `dict`. """
         return {
             'user_id': self.user_id,
-            'is_authenticated': self.is_authenticated,
             'is_external_auth': self.is_external_auth,
         }
 
@@ -647,9 +639,7 @@ class AuthUser(object):
             user_id=cookie.get('user_id'),
             is_external_auth=cookie.get('is_external_auth', False),
         )
-        if not au.is_authenticated and au.user_id is not None:
-            # user is not authenticated and not empty
-            au.set_authenticated(cookie.get('is_authenticated'))
+        au.is_authenticated = True
         return au
 
     @classmethod
@@ -710,13 +700,16 @@ def set_available_permissions(config):
 # CHECK DECORATORS
 #==============================================================================
 
-def redirect_to_login(message=None):
+def _redirect_to_login(message=None):
+    """Return an exception that must be raised. It will redirect to the login
+    page which will redirect back to the current URL after authentication.
+    The optional message will be shown in a flash message."""
     from kallithea.lib import helpers as h
-    p = request.path_qs
     if message:
         h.flash(h.literal(message), category='warning')
+    p = request.path_qs
     log.debug('Redirecting to login page, origin: %s', p)
-    return redirect(url('login_home', came_from=p))
+    return HTTPFound(location=url('login_home', came_from=p))
 
 
 class LoginRequired(object):
@@ -741,7 +734,7 @@ class LoginRequired(object):
         log.debug('Checking access for user %s @ %s', user, loc)
 
         if not AuthUser.check_ip_allowed(user, controller.ip_addr):
-            return redirect_to_login(_('IP %s not allowed') % controller.ip_addr)
+            raise _redirect_to_login(_('IP %s not allowed') % controller.ip_addr)
 
         # check if we used an API key and it's a valid one
         api_key = request.GET.get('api_key')
@@ -754,17 +747,17 @@ class LoginRequired(object):
                     return func(*fargs, **fkwargs)
                 else:
                     log.warning('API key ****%s is NOT valid', api_key[-4:])
-                    return redirect_to_login(_('Invalid API key'))
+                    raise _redirect_to_login(_('Invalid API key'))
             else:
                 # controller does not allow API access
                 log.warning('API access to %s is not allowed', loc)
-                return abort(403)
+                raise HTTPForbidden()
 
         # Only allow the following HTTP request methods. (We sometimes use POST
         # requests with a '_method' set to 'PUT' or 'DELETE'; but that is only
         # used for the route lookup, and does not affect request.method.)
         if request.method not in ['GET', 'HEAD', 'POST', 'PUT']:
-            return abort(405)
+            raise HTTPMethodNotAllowed()
 
         # Make sure CSRF token never appears in the URL. If so, invalidate it.
         if secure_form.token_key in request.GET:
@@ -785,22 +778,22 @@ class LoginRequired(object):
             token = request.POST.get(secure_form.token_key)
             if not token or token != secure_form.authentication_token():
                 log.error('CSRF check failed')
-                return abort(403)
+                raise HTTPForbidden()
 
         # WebOb already ignores request payload parameters for anything other
         # than POST/PUT, but double-check since other Kallithea code relies on
         # this assumption.
         if request.method not in ['POST', 'PUT'] and request.POST:
             log.error('%r request with payload parameters; WebOb should have stopped this', request.method)
-            return abort(400)
+            raise HTTPBadRequest()
 
         # regular user authentication
-        if user.is_authenticated:
+        if user.is_authenticated or user.is_default_user:
             log.info('user %s authenticated with regular auth @ %s', user, loc)
             return func(*fargs, **fkwargs)
         else:
             log.warning('user %s NOT authenticated with regular auth @ %s', user, loc)
-            return redirect_to_login()
+            raise _redirect_to_login()
 
 class NotAnonymous(object):
     """
@@ -816,11 +809,9 @@ class NotAnonymous(object):
 
         log.debug('Checking if user is not anonymous @%s', cls)
 
-        anonymous = self.user.username == User.DEFAULT_USER
-
-        if anonymous:
-            return redirect_to_login(_('You need to be a registered user to '
-                    'perform this action'))
+        if self.user.is_default_user:
+            raise _redirect_to_login(_('You need to be a registered user to '
+                                       'perform this action'))
         else:
             return func(*fargs, **fkwargs)
 
@@ -848,13 +839,10 @@ class PermsDecorator(object):
 
         else:
             log.debug('Permission denied for %s %s', cls, self.user)
-            anonymous = self.user.username == User.DEFAULT_USER
-
-            if anonymous:
-                return redirect_to_login(_('You need to be signed in to view this page'))
+            if self.user.is_default_user:
+                raise _redirect_to_login(_('You need to be signed in to view this page'))
             else:
-                # redirect with forbidden ret code
-                return abort(403)
+                raise HTTPForbidden()
 
     def check_permissions(self):
         """Dummy function for overriding"""

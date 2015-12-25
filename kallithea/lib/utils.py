@@ -418,6 +418,21 @@ def set_vcs_config(config):
                                                         'utf8'), sep=',')
 
 
+def set_indexer_config(config):
+    """
+    Update Whoosh index mapping
+
+    :param config: kallithea.CONFIG
+    """
+    from kallithea.config import conf
+
+    log.debug('adding extra into INDEX_EXTENSIONS')
+    conf.INDEX_EXTENSIONS.extend(re.split('\s+', config.get('index.extensions', '')))
+
+    log.debug('adding extra into INDEX_FILENAMES')
+    conf.INDEX_FILENAMES.extend(re.split('\s+', config.get('index.filenames', '')))
+
+
 def map_groups(path):
     """
     Given a full path to a repository, create all nested groups that this
@@ -639,7 +654,7 @@ def create_test_index(repo_location, config, full_index):
     try:
         l = DaemonLock(file_=jn(dn(index_location), 'make_index.lock'))
         WhooshIndexingDaemon(index_location=index_location,
-                             repo_location=repo_location)\
+                             repo_location=repo_location) \
             .run(full_index=full_index)
         l.release()
     except LockHeld:
@@ -775,11 +790,10 @@ class BasePasterCommand(Command):
         Inits SqlAlchemy Session
         """
         logging.config.fileConfig(self.path_to_ini_file)
+
         from pylons import config
         from kallithea.model import init_model
         from kallithea.lib.utils2 import engine_from_config
-
-        #get to remove repos !!
         add_cache(config)
         engine = engine_from_config(config, 'sqlalchemy.db1.')
         init_model(engine)
