@@ -37,7 +37,7 @@ from webob.exc import HTTPNotFound, HTTPForbidden, HTTPInternalServerError, \
     HTTPNotAcceptable
 from kallithea.model.db import User
 
-from kallithea.lib.utils2 import safe_str, safe_unicode, fix_PATH, get_server_url,\
+from kallithea.lib.utils2 import safe_str, safe_unicode, fix_PATH, get_server_url, \
     _set_extras
 from kallithea.lib.base import BaseVCSController, WSGIResultCloseCallback
 from kallithea.lib.utils import make_ui, is_valid_repo, ui_sections
@@ -275,7 +275,7 @@ class SimpleHg(BaseVCSController):
         raise Exception('Unable to detect pull/push action !!'
                         'Are you using non standard command or client ?')
 
-    def __inject_extras(self, repo_path, baseui, extras={}):
+    def __inject_extras(self, repo_path, baseui, extras=None):
         """
         Injects some extra params into baseui instance
 
@@ -294,4 +294,4 @@ class SimpleHg(BaseVCSController):
             for section in ui_sections:
                 for k, v in repoui.configitems(section):
                     baseui.setconfig(section, k, v)
-        _set_extras(extras)
+        _set_extras(extras or {})

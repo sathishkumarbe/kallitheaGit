@@ -72,8 +72,8 @@ class TestMyAccountController(TestController):
         response = self.app.get(url('my_account_emails'))
 
         from kallithea.model.db import UserEmailMap
-        email_id = UserEmailMap.query()\
-            .filter(UserEmailMap.user == User.get_by_username(TEST_USER_ADMIN_LOGIN))\
+        email_id = UserEmailMap.query() \
+            .filter(UserEmailMap.user == User.get_by_username(TEST_USER_ADMIN_LOGIN)) \
             .filter(UserEmailMap.email == 'barz@example.com').one().email_id
 
         response.mustcontain('barz@example.com')
@@ -156,8 +156,8 @@ class TestMyAccountController(TestController):
                                     username=TEST_USER_ADMIN_LOGIN,
                                     new_password=TEST_USER_ADMIN_PASS,
                                     password_confirmation='test122',
-                                    firstname='NewName',
-                                    lastname='NewLastname',
+                                    firstname=u'NewName',
+                                    lastname=u'NewLastname',
                                     email=new_email,
                                     _authentication_token=self.authentication_token())
                                 )
@@ -173,14 +173,14 @@ class TestMyAccountController(TestController):
                                             username=TEST_USER_ADMIN_LOGIN,
                                             new_password=TEST_USER_ADMIN_PASS,
                                             password_confirmation='test122',
-                                            firstname='NewName',
-                                            lastname='NewLastname',
+                                            firstname=u'NewName',
+                                            lastname=u'NewLastname',
                                             email=new_email,
                                             _authentication_token=self.authentication_token()))
 
         response.mustcontain('An email address must contain a single @')
         from kallithea.model import validators
-        msg = validators.ValidUsername(edit=False, old_data={})\
+        msg = validators.ValidUsername(edit=False, old_data={}) \
                 ._messages['username_exists']
         msg = h.html_escape(msg % {'username': TEST_USER_ADMIN_LOGIN})
         response.mustcontain(msg)

@@ -38,7 +38,7 @@ from webob.exc import HTTPNotFound, HTTPForbidden, HTTPInternalServerError, \
     HTTPNotAcceptable
 from kallithea.model.db import User, Ui
 
-from kallithea.lib.utils2 import safe_str, safe_unicode, fix_PATH, get_server_url,\
+from kallithea.lib.utils2 import safe_str, safe_unicode, fix_PATH, get_server_url, \
     _set_extras
 from kallithea.lib.base import BaseVCSController, WSGIResultCloseCallback
 from kallithea.lib.utils import make_ui, is_valid_repo
@@ -295,12 +295,11 @@ class SimpleGit(BaseVCSController):
         if action == 'pull' and _hooks.get(Ui.HOOK_PULL):
             log_pull_action(ui=baseui, repo=_repo._repo)
 
-    def __inject_extras(self, repo_path, baseui, extras={}):
+    def __inject_extras(self, repo_path, baseui, extras=None):
         """
         Injects some extra params into baseui instance
 
         :param baseui: baseui instance
         :param extras: dict with extra params to put into baseui
         """
-
-        _set_extras(extras)
+        _set_extras(extras or {})

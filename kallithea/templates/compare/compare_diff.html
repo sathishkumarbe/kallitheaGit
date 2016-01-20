@@ -26,9 +26,15 @@ ${self.repo_context_bar('changelog')}
     </div>
     <div class="table">
         <div id="body" class="diffblock">
-            <div class="code-header">
+            <div class="compare-revision-selector">
+                ## divs are "inline-block" and cannot have whitespace between them.
                 <div>
-                    ${h.hidden('compare_org')} <i class="icon-right"></i> ${h.hidden('compare_other')}
+                    ${h.hidden('compare_org')}
+                </div><div>
+                    <i class="icon-right"></i>
+                </div><div>
+                    ${h.hidden('compare_other')}
+                </div><div>
                     %if not c.compare_home:
                         <a class="btn btn-small" href="${c.swap_url}"><i class="icon-arrows-cw"></i> ${_('Swap')}</a>
                     %endif
@@ -82,9 +88,7 @@ ${self.repo_context_bar('changelog')}
         ## diff block
         <%namespace name="diff_block" file="/changeset/diff_block.html"/>
         ${diff_block.diff_block_js()}
-        %for fid, change, f, stat in c.files:
-          ${diff_block.diff_block_simple([c.changes[fid]])}
-        %endfor
+        ${diff_block.diff_block_simple(c.files, c.changes)}
         % if c.limited_diff:
           <h4>${_('Changeset was too big and was cut off...')} <a href="${h.url.current(fulldiff=1, **request.GET.mixed())}">${_('Show full diff')}</a></h4>
         % endif

@@ -23,13 +23,11 @@ Original author and date, and relevant copyright and licensing information is be
 :author: marcink
 :copyright: (c) 2013 RhodeCode GmbH, and others.
 :license: GPLv3, see LICENSE.md for more details.
-
 """
 
 
 import os
 import sys
-import logging
 
 from string import strip
 from kallithea.model.repo import RepoModel
@@ -53,7 +51,6 @@ class Command(BasePasterCommand):
     summary = "Creates or updates full text search index"
 
     def command(self):
-        logging.config.fileConfig(self.path_to_ini_file)
         #get SqlAlchemy session
         self._init_session()
         from pylons import config
@@ -79,7 +76,7 @@ class Command(BasePasterCommand):
             WhooshIndexingDaemon(index_location=index_location,
                                  repo_location=repo_location,
                                  repo_list=repo_list,
-                                 repo_update_list=repo_update_list)\
+                                 repo_update_list=repo_update_list) \
                 .run(full_index=self.options.full_index)
             l.release()
         except LockHeld:
