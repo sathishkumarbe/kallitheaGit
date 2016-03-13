@@ -2,7 +2,7 @@ from kallithea.tests import *
 from kallithea.model.db import Setting
 
 
-class TestAuthSettingsController(TestController):
+class TestAuthSettingsController(TestControllerPytest):
     def _enable_plugins(self, plugins_list):
         test_url = url(controller='admin/auth_settings',
                        action='auth_settings')
@@ -21,10 +21,9 @@ class TestAuthSettingsController(TestController):
                                     action='index'))
         response.mustcontain('Authentication Plugins')
 
+    @skipif(not ldap_lib_installed, reason='skipping due to missing ldap lib')
     def test_ldap_save_settings(self):
         self.log_user()
-        if not ldap_lib_installed:
-            raise SkipTest('skipping due to missing ldap lib')
 
         params = self._enable_plugins('kallithea.lib.auth_modules.auth_internal,kallithea.lib.auth_modules.auth_ldap')
         params.update({'auth_ldap_host': u'dc.example.com',
@@ -51,10 +50,9 @@ class TestAuthSettingsController(TestController):
         self.assertEqual(new_settings['auth_ldap_host'], u'dc.example.com',
                          'fail db write compare')
 
+    @skipif(not ldap_lib_installed, reason='skipping due to missing ldap lib')
     def test_ldap_error_form_wrong_port_number(self):
         self.log_user()
-        if not ldap_lib_installed:
-            raise SkipTest('skipping due to missing ldap lib')
 
         params = self._enable_plugins('kallithea.lib.auth_modules.auth_internal,kallithea.lib.auth_modules.auth_ldap')
         params.update({'auth_ldap_host': '',
@@ -78,10 +76,9 @@ class TestAuthSettingsController(TestController):
         response.mustcontain("""<span class="error-message">"""
                              """Please enter a number</span>""")
 
+    @skipif(not ldap_lib_installed, reason='skipping due to missing ldap lib')
     def test_ldap_error_form(self):
         self.log_user()
-        if not ldap_lib_installed:
-            raise SkipTest('skipping due to missing ldap lib')
 
         params = self._enable_plugins('kallithea.lib.auth_modules.auth_internal,kallithea.lib.auth_modules.auth_ldap')
         params.update({'auth_ldap_host': 'Host',
@@ -135,6 +132,9 @@ class TestAuthSettingsController(TestController):
     def test_container_auth_login_header(self):
         self._container_auth_setup(
             auth_container_header='THE_USER_NAME',
+            auth_container_email_header='',
+            auth_container_firstname_header='',
+            auth_container_lastname_header='',
             auth_container_fallback_header='',
             auth_container_clean_username='False',
         )
@@ -143,9 +143,34 @@ class TestAuthSettingsController(TestController):
             resulting_username='john@example.org',
         )
 
+    def test_container_auth_login_header_attr(self):
+        self._container_auth_setup(
+            auth_container_header='THE_USER_NAME',
+            auth_container_email_header='THE_USER_EMAIL',
+            auth_container_firstname_header='THE_USER_FIRSTNAME',
+            auth_container_lastname_header='THE_USER_LASTNAME',
+            auth_container_fallback_header='',
+            auth_container_clean_username='False',
+        )
+        response = self.app.get(
+            url=url(controller='admin/my_account', action='my_account'),
+            extra_environ={'THE_USER_NAME': 'johnd',
+                           'THE_USER_EMAIL': 'john@example.org',
+                           'THE_USER_FIRSTNAME': 'John',
+                           'THE_USER_LASTNAME': 'Doe',
+                           }
+        )
+        self.assertEqual(response.form['email'].value, 'john@example.org')
+        self.assertEqual(response.form['firstname'].value, 'John')
+        self.assertEqual(response.form['lastname'].value, 'Doe')
+
+
     def test_container_auth_login_fallback_header(self):
         self._container_auth_setup(
             auth_container_header='THE_USER_NAME',
+            auth_container_email_header='',
+            auth_container_firstname_header='',
+            auth_container_lastname_header='',
             auth_container_fallback_header='HTTP_X_YZZY',
             auth_container_clean_username='False',
         )
@@ -157,6 +182,9 @@ class TestAuthSettingsController(TestController):
     def test_container_auth_clean_username_at(self):
         self._container_auth_setup(
             auth_container_header='REMOTE_USER',
+            auth_container_email_header='',
+            auth_container_firstname_header='',
+            auth_container_lastname_header='',
             auth_container_fallback_header='',
             auth_container_clean_username='True',
         )
@@ -168,6 +196,9 @@ class TestAuthSettingsController(TestController):
     def test_container_auth_clean_username_backslash(self):
         self._container_auth_setup(
             auth_container_header='REMOTE_USER',
+            auth_container_email_header='',
+            auth_container_firstname_header='',
+            auth_container_lastname_header='',
             auth_container_fallback_header='',
             auth_container_clean_username='True',
         )
@@ -179,6 +210,9 @@ class TestAuthSettingsController(TestController):
     def test_container_auth_no_logout(self):
         self._container_auth_setup(
             auth_container_header='REMOTE_USER',
+            auth_container_email_header='',
+            auth_container_firstname_header='',
+            auth_container_lastname_header='',
             auth_container_fallback_header='',
             auth_container_clean_username='True',
         )
@@ -208,11 +242,9 @@ class TestAuthSettingsController(TestController):
         self.assertEqual(new_settings['auth_crowd_host'], u'hostname',
                          'fail db write compare')
 
+    @skipif(not pam_lib_installed, reason='skipping due to missing pam lib')
     def test_pam_save_settings(self):
         self.log_user()
-
-        if not pam_lib_installed:
-            raise SkipTest('skipping due to missing pam lib')
 
         params = self._enable_plugins('kallithea.lib.auth_modules.auth_internal,kallithea.lib.auth_modules.auth_pam')
         params.update({'auth_pam_service': 'kallithea',

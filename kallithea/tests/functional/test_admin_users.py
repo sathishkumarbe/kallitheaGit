@@ -45,8 +45,8 @@ class TestAdminUsersController(TestController):
         username = 'newtestuser'
         password = 'test12'
         password_confirmation = password
-        name = 'name'
-        lastname = 'lastname'
+        name = u'name'
+        lastname = u'lastname'
         email = 'mail@example.com'
 
         response = self.app.post(url('users'),
@@ -64,7 +64,7 @@ class TestAdminUsersController(TestController):
         self.checkSessionFlash(response, '''Created user <a href="/_admin/users/''')
         self.checkSessionFlash(response, '''/edit">%s</a>''' % (username))
 
-        new_user = Session().query(User).\
+        new_user = Session().query(User). \
             filter(User.username == username).one()
 
         self.assertEqual(new_user.username, username)
@@ -81,8 +81,8 @@ class TestAdminUsersController(TestController):
         self.log_user()
         username = 'new_user'
         password = ''
-        name = 'name'
-        lastname = 'lastname'
+        name = u'name'
+        lastname = u'lastname'
         email = 'errmail.example.com'
 
         response = self.app.post(url('users'), {'username': username,
@@ -165,7 +165,7 @@ class TestAdminUsersController(TestController):
 
         fixture.create_user(name=username)
 
-        new_user = Session().query(User)\
+        new_user = Session().query(User) \
             .filter(User.username == username).one()
         response = self.app.post(url('user', id=new_user.user_id),
             params={'_method': 'delete', '_authentication_token': self.authentication_token()})
@@ -175,12 +175,12 @@ class TestAdminUsersController(TestController):
     def test_delete_repo_err(self):
         self.log_user()
         username = 'repoerr'
-        reponame = 'repoerr_fail'
+        reponame = u'repoerr_fail'
 
         fixture.create_user(name=username)
         fixture.create_repo(name=reponame, cur_user=username)
 
-        new_user = Session().query(User)\
+        new_user = Session().query(User) \
             .filter(User.username == username).one()
         response = self.app.post(url('user', id=new_user.user_id),
             params={'_method': 'delete', '_authentication_token': self.authentication_token()})
@@ -200,12 +200,12 @@ class TestAdminUsersController(TestController):
     def test_delete_repo_group_err(self):
         self.log_user()
         username = 'repogrouperr'
-        groupname = 'repogroup_fail'
+        groupname = u'repogroup_fail'
 
         fixture.create_user(name=username)
         fixture.create_repo_group(name=groupname, cur_user=username)
 
-        new_user = Session().query(User)\
+        new_user = Session().query(User) \
             .filter(User.username == username).one()
         response = self.app.post(url('user', id=new_user.user_id),
             params={'_method': 'delete', '_authentication_token': self.authentication_token()})
@@ -229,12 +229,12 @@ class TestAdminUsersController(TestController):
     def test_delete_user_group_err(self):
         self.log_user()
         username = 'usergrouperr'
-        groupname = 'usergroup_fail'
+        groupname = u'usergroup_fail'
 
         fixture.create_user(name=username)
         ug = fixture.create_user_group(name=groupname, cur_user=username)
 
-        new_user = Session().query(User)\
+        new_user = Session().query(User) \
             .filter(User.username == username).one()
         response = self.app.post(url('user', id=new_user.user_id),
             params={'_method': 'delete', '_authentication_token': self.authentication_token()})
@@ -267,8 +267,8 @@ class TestAdminUsersController(TestController):
         perm_create = Permission.get_by_key('hg.create.repository')
 
         user = UserModel().create_or_update(username='dummy', password='qwe',
-                                            email='dummy', firstname='a',
-                                            lastname='b')
+                                            email='dummy', firstname=u'a',
+                                            lastname=u'b')
         Session().commit()
         uid = user.user_id
 
@@ -298,8 +298,8 @@ class TestAdminUsersController(TestController):
         perm_create = Permission.get_by_key('hg.create.repository')
 
         user = UserModel().create_or_update(username='dummy', password='qwe',
-                                            email='dummy', firstname='a',
-                                            lastname='b')
+                                            email='dummy', firstname=u'a',
+                                            lastname=u'b')
         Session().commit()
         uid = user.user_id
 
@@ -327,8 +327,8 @@ class TestAdminUsersController(TestController):
         perm_fork = Permission.get_by_key('hg.fork.repository')
 
         user = UserModel().create_or_update(username='dummy', password='qwe',
-                                            email='dummy', firstname='a',
-                                            lastname='b')
+                                            email='dummy', firstname=u'a',
+                                            lastname=u'b')
         Session().commit()
         uid = user.user_id
 
@@ -358,8 +358,8 @@ class TestAdminUsersController(TestController):
         perm_fork = Permission.get_by_key('hg.fork.repository')
 
         user = UserModel().create_or_update(username='dummy', password='qwe',
-                                            email='dummy', firstname='a',
-                                            lastname='b')
+                                            email='dummy', firstname=u'a',
+                                            lastname=u'b')
         Session().commit()
         uid = user.user_id
 
@@ -532,7 +532,7 @@ class TestAdminUsersController(TestController):
 #            u._get_user_or_raise_if_default(User.get_default_user().user_id)
 
 
-class TestAdminUsersControllerForDefaultUser(TestController):
+class TestAdminUsersControllerForDefaultUser(TestControllerPytest):
     """
     Edit actions on the default user are not allowed.
     Validate that they throw a 404 exception.

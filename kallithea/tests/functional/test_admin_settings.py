@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+import tempfile
+
 from kallithea.model.db import Setting, Ui
 from kallithea.tests import *
 from kallithea.tests.fixture import Fixture
@@ -7,7 +9,7 @@ from kallithea.tests.fixture import Fixture
 fixture = Fixture()
 
 
-class TestAdminSettingsController(TestController):
+class TestAdminSettingsController(TestControllerPytest):
 
     def test_index_main(self):
         self.log_user()
@@ -37,31 +39,31 @@ class TestAdminSettingsController(TestController):
         self.log_user()
         response = self.app.post(url('admin_settings_hooks'),
                                 params=dict(new_hook_ui_key='test_hooks_1',
-                                            new_hook_ui_value='cd /tmp',
+                                            new_hook_ui_value='cd %s' % tempfile.gettempdir(),
                                             _authentication_token=self.authentication_token()))
 
         response = response.follow()
         response.mustcontain('test_hooks_1')
-        response.mustcontain('cd /tmp')
+        response.mustcontain('cd %s' % tempfile.gettempdir())
 
     def test_create_custom_hook_delete(self):
         self.log_user()
         response = self.app.post(url('admin_settings_hooks'),
                                 params=dict(new_hook_ui_key='test_hooks_2',
-                                            new_hook_ui_value='cd /tmp2',
+                                            new_hook_ui_value='cd %s2' % tempfile.gettempdir(),
                                             _authentication_token=self.authentication_token()))
 
         response = response.follow()
         response.mustcontain('test_hooks_2')
-        response.mustcontain('cd /tmp2')
+        response.mustcontain('cd %s2' % tempfile.gettempdir())
 
-        hook_id = Ui.get_by_key('test_hooks_2').ui_id
+        hook_id = Ui.get_by_key('hooks', 'test_hooks_2').ui_id
         ## delete
         self.app.post(url('admin_settings_hooks'),
                         params=dict(hook_id=hook_id, _authentication_token=self.authentication_token()))
         response = self.app.get(url('admin_settings_hooks'))
         response.mustcontain(no=['test_hooks_2'])
-        response.mustcontain(no=['cd /tmp2'])
+        response.mustcontain(no=['cd %s2' % tempfile.gettempdir()])
 
     def test_index_search(self):
         self.log_user()

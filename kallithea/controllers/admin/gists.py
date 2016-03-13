@@ -31,8 +31,8 @@ import traceback
 import formencode.htmlfill
 
 from pylons import request, response, tmpl_context as c, url
-from pylons.controllers.util import redirect
 from pylons.i18n.translation import _
+from webob.exc import HTTPFound, HTTPNotFound, HTTPForbidden
 
 from kallithea.model.forms import GistForm
 from kallithea.model.gist import GistModel
@@ -44,7 +44,6 @@ from kallithea.lib.auth import LoginRequired, NotAnonymous
 from kallithea.lib.utils import jsonify
 from kallithea.lib.utils2 import safe_int, safe_unicode, time_to_datetime
 from kallithea.lib.helpers import Page
-from webob.exc import HTTPNotFound, HTTPForbidden
 from sqlalchemy.sql.expression import or_
 from kallithea.lib.vcs.exceptions import VCSError, NodeNotChangedError
 
@@ -70,27 +69,27 @@ class GistsController(BaseController):
     def index(self):
         """GET /admin/gists: All items in the collection"""
         # url('gists')
-        not_default_user = c.authuser.username != User.DEFAULT_USER
+        not_default_user = not c.authuser.is_default_user
         c.show_private = request.GET.get('private') and not_default_user
         c.show_public = request.GET.get('public') and not_default_user
 
-        gists = Gist().query()\
-            .filter(or_(Gist.gist_expires == -1, Gist.gist_expires >= time.time()))\
+        gists = Gist().query() \
+            .filter(or_(Gist.gist_expires == -1, Gist.gist_expires >= time.time())) \
             .order_by(Gist.created_on.desc())
 
         # MY private
         if c.show_private and not c.show_public:
-            gists = gists.filter(Gist.gist_type == Gist.GIST_PRIVATE)\
+            gists = gists.filter(Gist.gist_type == Gist.GIST_PRIVATE) \
                              .filter(Gist.gist_owner == c.authuser.user_id)
         # MY public
         elif c.show_public and not c.show_private:
-            gists = gists.filter(Gist.gist_type == Gist.GIST_PUBLIC)\
+            gists = gists.filter(Gist.gist_type == Gist.GIST_PUBLIC) \
                              .filter(Gist.gist_owner == c.authuser.user_id)
 
         # MY public+private
         elif c.show_private and c.show_public:
             gists = gists.filter(or_(Gist.gist_type == Gist.GIST_PUBLIC,
-                                     Gist.gist_type == Gist.GIST_PRIVATE))\
+                                     Gist.gist_type == Gist.GIST_PRIVATE)) \
                              .filter(Gist.gist_owner == c.authuser.user_id)
 
         # default show ALL public gists
@@ -144,8 +143,8 @@ class GistsController(BaseController):
         except Exception as e:
             log.error(traceback.format_exc())
             h.flash(_('Error occurred during gist creation'), category='error')
-            return redirect(url('new_gist'))
-        return redirect(url('gist', gist_id=new_gist_id))
+            raise HTTPFound(location=url('new_gist'))
+        raise HTTPFound(location=url('gist', gist_id=new_gist_id))
 
     @LoginRequired()
     @NotAnonymous()
@@ -185,7 +184,7 @@ class GistsController(BaseController):
         else:
             raise HTTPForbidden()
 
-        return redirect(url('gists'))
+        raise HTTPFound(location=url('gists'))
 
     @LoginRequired()
     def show(self, gist_id, revision='tip', format='html', f_path=None):
@@ -270,7 +269,7 @@ class GistsController(BaseController):
                 h.flash(_('Error occurred during update of gist %s') % gist_id,
                         category='error')
 
-            return redirect(url('gist', gist_id=gist_id))
+            raise HTTPFound(location=url('gist', gist_id=gist_id))
 
         return rendered
 

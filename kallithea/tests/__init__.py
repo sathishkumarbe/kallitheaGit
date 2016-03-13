@@ -15,22 +15,12 @@
 """
 Pylons application test package
 
-This package assumes the Pylons environment is already loaded, such as
-when this script is imported from the `nosetests --with-pylons=test.ini`
-command.
+This package assumes the Pylons environment is already loaded.
 
 This module initializes the application via ``websetup`` (`paster
 setup-app`) and provides the base testing objects.
 
-nosetests -x - fail on first error
-nosetests kallithea.tests.functional.test_admin_settings:TestSettingsController.test_my_account
-nosetests --pdb --pdb-failures
-nosetests --with-coverage --cover-package=kallithea.model.validators kallithea.tests.test_validators
-
-optional FLAGS:
-    KALLITHEA_WHOOSH_TEST_DISABLE=1 - skip whoosh index building and tests
-    KALLITHEA_NO_TMP_PATH=1 - disable new temp path for tests, used mostly for test_vcs_operations
-
+Refer to docs/contributing.rst for details on running the test suite.
 """
 import os
 import re
@@ -51,7 +41,7 @@ from pylons.util import ContextObj
 
 from routes.util import URLGenerator
 from webtest import TestApp
-from nose.plugins.skip import SkipTest
+import pytest
 
 from kallithea.lib.compat import unittest
 from kallithea import is_windows
@@ -67,9 +57,12 @@ if not is_windows:
 
 log = logging.getLogger(__name__)
 
+skipif = pytest.mark.skipif
+parametrize = pytest.mark.parametrize
+
 __all__ = [
-    'parameterized', 'environ', 'url', 'TestController',
-    'SkipTest', 'ldap_lib_installed', 'pam_lib_installed', 'BaseTestCase', 'init_stack',
+    'skipif', 'parametrize', 'parameterized', 'environ', 'url', 'TestController', 'TestControllerPytest',
+    'ldap_lib_installed', 'pam_lib_installed', 'BaseTestCase', 'init_stack',
     'TESTS_TMP_PATH', 'HG_REPO', 'GIT_REPO', 'NEW_HG_REPO', 'NEW_GIT_REPO',
     'HG_FORK', 'GIT_FORK', 'TEST_USER_ADMIN_LOGIN', 'TEST_USER_ADMIN_PASS',
     'TEST_USER_ADMIN_EMAIL', 'TEST_USER_REGULAR_LOGIN', 'TEST_USER_REGULAR_PASS',
@@ -77,7 +70,7 @@ __all__ = [
     'TEST_USER_REGULAR2_PASS', 'TEST_USER_REGULAR2_EMAIL', 'TEST_HG_REPO',
     'TEST_HG_REPO_CLONE', 'TEST_HG_REPO_PULL', 'TEST_GIT_REPO',
     'TEST_GIT_REPO_CLONE', 'TEST_GIT_REPO_PULL', 'HG_REMOTE_REPO',
-    'GIT_REMOTE_REPO', 'SCM_TESTS',
+    'GIT_REMOTE_REPO', 'SCM_TESTS', 'remove_all_notifications',
 ]
 
 # Invoke websetup with the current config file
@@ -87,7 +80,7 @@ environ = {}
 
 #SOME GLOBALS FOR TESTS
 
-TESTS_TMP_PATH = jn('/', 'tmp', 'rc_test_%s' % _RandomNameSequence().next())
+TESTS_TMP_PATH = jn(tempfile.gettempdir(), 'rc_test_%s' % _RandomNameSequence().next())
 TEST_USER_ADMIN_LOGIN = 'test_admin'
 TEST_USER_ADMIN_PASS = 'test12'
 TEST_USER_ADMIN_EMAIL = 'test_admin@example.com'
@@ -100,14 +93,14 @@ TEST_USER_REGULAR2_LOGIN = 'test_regular2'
 TEST_USER_REGULAR2_PASS = 'test12'
 TEST_USER_REGULAR2_EMAIL = 'test_regular2@example.com'
 
-HG_REPO = 'vcs_test_hg'
-GIT_REPO = 'vcs_test_git'
+HG_REPO = u'vcs_test_hg'
+GIT_REPO = u'vcs_test_git'
 
-NEW_HG_REPO = 'vcs_test_hg_new'
-NEW_GIT_REPO = 'vcs_test_git_new'
+NEW_HG_REPO = u'vcs_test_hg_new'
+NEW_GIT_REPO = u'vcs_test_git_new'
 
-HG_FORK = 'vcs_test_hg_fork'
-GIT_FORK = 'vcs_test_git_fork'
+HG_FORK = u'vcs_test_hg_fork'
+GIT_FORK = u'vcs_test_git_fork'
 
 ## VCS
 SCM_TESTS = ['hg', 'git']
@@ -151,8 +144,6 @@ try:
 except ImportError:
     pam_lib_installed = False
 
-import logging
-
 class NullHandler(logging.Handler):
     def emit(self, record):
         pass
@@ -170,27 +161,29 @@ def init_stack(config=None):
     h = NullHandler()
     logging.getLogger("kallithea").addHandler(h)
 
+def remove_all_notifications():
+    Notification.query().delete()
+
+    # Because query().delete() does not (by default) trigger cascades.
+    # http://docs.sqlalchemy.org/en/rel_0_7/orm/collections.html#passive-deletes
+    UserNotification.query().delete()
+
+    Session().commit()
 
 class BaseTestCase(unittest.TestCase):
+    """Unittest-style base test case. Deprecated in favor of pytest style."""
+
     def __init__(self, *args, **kwargs):
         self.wsgiapp = pylons.test.pylonsapp
         init_stack(self.wsgiapp.config)
         unittest.TestCase.__init__(self, *args, **kwargs)
 
-    def remove_all_notifications(self):
-        Notification.query().delete()
+class BaseTestController(object):
+    """Base test controller used by pytest and unittest tests controllers."""
 
-        # Because query().delete() does not (by default) trigger cascades.
-        # http://docs.sqlalchemy.org/en/rel_0_7/orm/collections.html#passive-deletes
-        UserNotification.query().delete()
+    # Note: pytest base classes cannot have an __init__ method
 
-        Session().commit()
-
-
-class TestController(BaseTestCase):
-
-    def __init__(self, *args, **kwargs):
-        BaseTestCase.__init__(self, *args, **kwargs)
+    def init(self):
         self.app = TestApp(self.wsgiapp)
         self.maxDiff = None
         self.index_location = config['app_conf']['index_dir']
@@ -203,7 +196,7 @@ class TestController(BaseTestCase):
                                   'password': password})
 
         if 'Invalid username or password' in response.body:
-            self.fail('could not login using %s %s' % (username, password))
+            pytest.fail('could not login using %s %s' % (username, password))
 
         self.assertEqual(response.status, '302 Found')
         self.assert_authenticated_user(response, username)
@@ -220,23 +213,62 @@ class TestController(BaseTestCase):
         user = user and User.get(user)
         user = user and user.username
         self.assertEqual(user, expected_username)
-        self.assertEqual(cookie.get('is_authenticated'), True)
 
     def authentication_token(self):
         return self.app.get(url('authentication_token')).body
 
     def checkSessionFlash(self, response, msg=None, skip=0, _matcher=lambda msg, m: msg in m):
         if 'flash' not in response.session:
-            self.fail(safe_str(u'msg `%s` not found - session has no flash:\n%s' % (msg, response)))
+            pytest.fail(safe_str(u'msg `%s` not found - session has no flash:\n%s' % (msg, response)))
         try:
             level, m = response.session['flash'][-1 - skip]
             if _matcher(msg, m):
                 return
         except IndexError:
             pass
-        self.fail(safe_str(u'msg `%s` not found in session flash (skipping %s): %s' %
+        pytest.fail(safe_str(u'msg `%s` not found in session flash (skipping %s): %s' %
                            (msg, skip,
                             ', '.join('`%s`' % m for level, m in response.session['flash']))))
 
     def checkSessionFlashRegex(self, response, regex, skip=0):
         self.checkSessionFlash(response, regex, skip=skip, _matcher=re.search)
+
+class TestController(BaseTestCase, BaseTestController):
+    """Deprecated unittest-style test controller"""
+
+    def __init__(self, *args, **kwargs):
+        super(TestController, self).__init__(*args, **kwargs)
+        self.init()
+
+class TestControllerPytest(BaseTestController):
+    """Pytest-style test controller"""
+
+    # Note: pytest base classes cannot have an __init__ method
+
+    @pytest.fixture(autouse=True)
+    def app_fixture(self):
+        self.wsgiapp = pylons.test.pylonsapp
+        init_stack(self.wsgiapp.config)
+        self.init()
+        return self.app
+
+    # transitional implementations of unittest.TestCase asserts
+    # Users of these should be converted to pytest's single 'assert' call
+    def assertEqual(self, first, second, msg=None):
+        assert first == second
+    def assertNotEqual(self, first, second, msg=None):
+        assert first != second
+    def assertTrue(self, expr, msg=None):
+        assert bool(expr) is True
+    def assertFalse(self, expr, msg=None):
+        assert bool(expr) is False
+    def assertIn(self, first, second, msg=None):
+        assert first in second
+    def assertNotIn(self, first, second, msg=None):
+        assert first not in second
+    def assertSetEqual(self, first, second, msg=None):
+        assert first == second
+    def assertListEqual(self, first, second, msg=None):
+        assert first == second
+    def assertDictEqual(self, first, second, msg=None):
+        assert first == second

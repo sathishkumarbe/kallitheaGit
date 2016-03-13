@@ -377,15 +377,16 @@ function asynchtml(url, $target, success, args){
         ;
 };
 
-var ajaxGET = function(url,success) {
+var ajaxGET = function(url, success, failure) {
+    if(failure === undefined) {
+        failure = function(jqXHR, textStatus, errorThrown) {
+                if (textStatus != "abort")
+                    alert("Ajax GET error: " + textStatus);
+            };
+    }
     return $.ajax({url: url, headers: {'X-PARTIAL-XHR': '1'}, cache: false})
         .done(success)
-        .fail(function(jqXHR, textStatus, errorThrown) {
-                if (textStatus == "abort")
-                    return;
-                alert("Ajax GET error: " + textStatus);
-        })
-        ;
+        .fail(failure);
 };
 
 var ajaxPOST = function(url, postData, success, failure) {
@@ -621,9 +622,13 @@ function move_comments($anchorcomments) {
         var line_no = $anchorcomment.data('line_no');
         if ($comment_div[0]) {
             $comment_div.append($anchorcomment.children());
-            _comment_div_append_add($comment_div, f_path, line_no);
+            if (f_path && line_no) {
+                _comment_div_append_add($comment_div, f_path, line_no);
+            } else {
+                _comment_div_append_form($comment_div, f_path, line_no);
+            }
         } else {
-           $anchorcomment.before("Comment to {0} line {1} which is outside the diff context:".format(f_path || '?', line_no || '?'));
+            $anchorcomment.before("Comment to {0} line {1} which is outside the diff context:".format(f_path || '?', line_no || '?'));
         }
     });
     linkInlineComments($('.firstlink'), $('.comment:first-child'));
@@ -652,20 +657,19 @@ function _get_add_comment_div(target_id) {
     return $comments_box;
 }
 
-// set $comment_div state - showing or not showing form and Add button
-function comment_div_state($comment_div, f_path, line_no, show_form) {
+// Set $comment_div state - showing or not showing form and Add button.
+// An Add button is shown on non-empty forms when no form is shown.
+// The form is controlled by show_form - if undefined, form is only shown for general comments.
+function comment_div_state($comment_div, f_path, line_no, show_form_opt) {
+    var show_form = show_form_opt !== undefined ? show_form_opt : !f_path && !line_no;
     var $forms = $comment_div.children('.comment-inline-form');
     var $buttonrow = $comment_div.children('.add-button-row');
     var $comments = $comment_div.children('.comment');
-    if (show_form) {
-        if (!$forms.length) {
-            _comment_div_append_form($comment_div, f_path, line_no);
-        }
-    } else {
-        $forms.remove();
-    }
+    $forms.remove();
     $buttonrow.remove();
-    if ($comments.length && !show_form) {
+    if (show_form) {
+        _comment_div_append_form($comment_div, f_path, line_no);
+    } else if ($comments.length) {
         _comment_div_append_add($comment_div, f_path, line_no);
     }
 }
@@ -682,72 +686,79 @@ function _comment_div_append_add($comment_div, f_path, line_no) {
 
 // append a comment form to $comment_div
 function _comment_div_append_form($comment_div, f_path, line_no) {
-    var $form_div = $($('#comment-inline-form-template').html().format(f_path, line_no))
+    var $form_div = $('#comment-inline-form-template').children()
+        .clone()
         .addClass('comment-inline-form');
     $comment_div.append($form_div);
     var $form = $comment_div.find("form");
+    var $textarea = $form.find('textarea');
+    var $mentions_container = $form.find('div.mentions-container');
 
     $form.submit(function(e) {
         e.preventDefault();
 
-        var text = $('#text_'+line_no).val();
-        if (!text){
-            return;
+        var text = $textarea.val();
+        var review_status = $form.find('input:radio[name=changeset_status]:checked').val();
+        var pr_close = $form.find('input:checkbox[name=save_close]:checked').length ? 'on' : '';
+        var pr_delete = $form.find('input:checkbox[name=save_delete]:checked').length ? 'delete' : '';
+
+        if (!text && !review_status && !pr_close && !pr_delete) {
+            alert("Please provide a comment");
+            return false;
+        }
+
+        if (pr_delete) {
+            if (text || review_status || pr_close) {
+                alert('Cannot delete pull request while making other changes');
+                return false;
+            }
+            if (!confirm('Confirm to delete this pull request')) {
+                return false;
+            }
+            var comments = $('.comment').size();
+            if (comments > 0 &&
+                !confirm('Confirm again to delete this pull request with {0} comments'.format(comments))) {
+                return false;
+            }
         }
 
         $form.find('.submitting-overlay').show();
 
-        var success = function(json_data) {
-            $comment_div.append(json_data['rendered_text']);
-            comment_div_state($comment_div, f_path, line_no, false);
-            linkInlineComments($('.firstlink'), $('.comment:first-child'));
-        };
         var postData = {
             'text': text,
             'f_path': f_path,
-            'line': line_no
+            'line': line_no,
+            'changeset_status': review_status,
+            'save_close': pr_close,
+            'save_delete': pr_delete
+        };
+        var success = function(json_data) {
+            if (pr_delete) {
+                location = json_data['location'];
+            } else {
+                $comment_div.append(json_data['rendered_text']);
+                comment_div_state($comment_div, f_path, line_no);
+                linkInlineComments($('.firstlink'), $('.comment:first-child'));
+                if ((review_status || pr_close) && !f_path && !line_no) {
+                    // Page changed a lot - reload it after closing the submitted form
+                    comment_div_state($comment_div, f_path, line_no, false);
+                    location.reload(true);
+                }
+            }
         };
         ajaxPOST(AJAX_COMMENT_URL, postData, success);
     });
 
-    $('#preview-btn_'+line_no).click(function(e){
-        var text = $('#text_'+line_no).val();
-        if(!text){
-            return
-        }
-        $('#preview-box_'+line_no).addClass('unloaded');
-        $('#preview-box_'+line_no).html(_TM['Loading ...']);
-        $('#edit-container_'+line_no).hide();
-        $('#edit-btn_'+line_no).show();
-        $('#preview-container_'+line_no).show();
-        $('#preview-btn_'+line_no).hide();
-
-        var url = pyroutes.url('changeset_comment_preview', {'repo_name': REPO_NAME});
-        var post_data = {'text': text};
-        ajaxPOST(url, post_data, function(html) {
-            $('#preview-box_'+line_no).html(html);
-            $('#preview-box_'+line_no).removeClass('unloaded');
-        })
-    })
-    $('#edit-btn_'+line_no).click(function(e) {
-        $('#edit-container_'+line_no).show();
-        $('#edit-btn_'+line_no).hide();
-        $('#preview-container_'+line_no).hide();
-        $('#preview-btn_'+line_no).show();
-    })
-
     // create event for hide button
     $form.find('.hide-inline-form').click(function(e) {
-        comment_div_state($comment_div, f_path, line_no, false);
+        comment_div_state($comment_div, f_path, line_no);
     });
 
-    setTimeout(function() {
-        // callbacks
-        tooltip_activate();
-        MentionsAutoComplete($('#text_'+line_no), $('#mentions_container_'+line_no),
-                             _USERS_AC_DATA);
-        $('#text_'+line_no).focus();
-    }, 10);
+    tooltip_activate();
+    MentionsAutoComplete($textarea, $mentions_container, _USERS_AC_DATA);
+    if (f_path) {
+        $textarea.focus();
+    }
 }
 
 
@@ -913,14 +924,14 @@ var initCodeMirror = function(textarea_id, baseUrl, resetUrl){
             $('#editor_container').show();
             $('#upload_file_container').hide();
             $('#filename_container').show();
-            $('#set_mode_header').show();
+            $('#mimetype_header').show();
         });
 
     $('#upload_file_enable').click(function(){
             $('#editor_container').hide();
             $('#upload_file_container').show();
             $('#filename_container').hide();
-            $('#set_mode_header').hide();
+            $('#mimetype_header').hide();
         });
 
     return myCodeMirror
@@ -1859,8 +1870,8 @@ var branchSort = function(results, container, query) {
             }
 
             // Put prefix matches before matches in the line
-            var aPos = a.text.indexOf(query.term),
-                bPos = b.text.indexOf(query.term);
+            var aPos = a.text.toLowerCase().indexOf(query.term.toLowerCase()),
+                bPos = b.text.toLowerCase().indexOf(query.term.toLowerCase());
             if (aPos === 0 && bPos !== 0) {
                 return -1;
             }
@@ -1881,19 +1892,33 @@ var branchSort = function(results, container, query) {
     return results;
 };
 
-// global hooks after DOM is loaded
+var prefixFirstSort = function(results, container, query) {
+    if (query.term) {
+        return results.sort(function (a, b) {
+            // if parent node, no sorting
+            if (a.children != undefined || b.children != undefined) {
+                return 0;
+            }
 
-$(document).ready(function(){
-    $('.diff-collapse-button').click(function(e) {
-        var $button = $(e.currentTarget);
-        var $target = $('#' + $button.attr('target'));
-        if($target.hasClass('hidden')){
-            $target.removeClass('hidden');
-            $button.html("&uarr; {0} &uarr;".format(_TM['Collapse Diff']));
-        }
-        else if(!$target.hasClass('hidden')){
-            $target.addClass('hidden');
-            $button.html("&darr; {0} &darr;".format(_TM['Expand Diff']));
-        }
-    });
-});
+            // Put prefix matches before matches in the line
+            var aPos = a.text.toLowerCase().indexOf(query.term.toLowerCase()),
+                bPos = b.text.toLowerCase().indexOf(query.term.toLowerCase());
+            if (aPos === 0 && bPos !== 0) {
+                return -1;
+            }
+            if (bPos === 0 && aPos !== 0) {
+                return 1;
+            }
+
+            // Default sorting
+            if (a.text > b.text) {
+                return 1;
+            }
+            if (a.text < b.text) {
+                return -1;
+            }
+            return 0;
+        });
+    }
+    return results;
+};

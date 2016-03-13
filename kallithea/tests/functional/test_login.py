@@ -21,7 +21,7 @@ fixture = Fixture()
 
 class TestLoginController(TestController):
     def setUp(self):
-        self.remove_all_notifications()
+        remove_all_notifications()
         self.assertEqual(Notification.query().all(), [])
 
     def test_index(self):
@@ -42,6 +42,17 @@ class TestLoginController(TestController):
     def test_login_regular_ok(self):
         response = self.app.post(url(controller='login', action='index'),
                                  {'username': TEST_USER_REGULAR_LOGIN,
+                                  'password': TEST_USER_REGULAR_PASS})
+
+        self.assertEqual(response.status, '302 Found')
+        self.assert_authenticated_user(response, TEST_USER_REGULAR_LOGIN)
+
+        response = response.follow()
+        response.mustcontain('/%s' % HG_REPO)
+
+    def test_login_regular_email_ok(self):
+        response = self.app.post(url(controller='login', action='index'),
+                                 {'username': TEST_USER_REGULAR_EMAIL,
                                   'password': TEST_USER_REGULAR_PASS})
 
         self.assertEqual(response.status, '302 Found')
@@ -350,8 +361,8 @@ class TestLoginController(TestController):
         username = 'test_password_reset_1'
         password = 'qweqwe'
         email = 'username@example.com'
-        name = 'passwd'
-        lastname = 'reset'
+        name = u'passwd'
+        lastname = u'reset'
         timestamp = int(time.time())
 
         new = User()

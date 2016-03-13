@@ -34,7 +34,7 @@ from kallithea.model.meta import Session
 from kallithea.lib import helpers as h
 from kallithea.lib.exceptions import UserInvalidException
 from kallithea.model import BaseModel
-from kallithea.model.db import PullRequest, PullRequestReviewers, Notification,\
+from kallithea.model.db import PullRequest, PullRequestReviewers, Notification, \
     ChangesetStatus, User
 from kallithea.model.notification import NotificationModel
 from kallithea.lib.utils2 import extract_mentioned_users, safe_unicode
@@ -51,10 +51,10 @@ class PullRequestModel(BaseModel):
         return self._get_instance(PullRequest, pull_request)
 
     def get_pullrequest_cnt_for_user(self, user):
-        return PullRequest.query()\
-                                .join(PullRequestReviewers)\
-                                .filter(PullRequestReviewers.user_id == user)\
-                                .filter(PullRequest.status != PullRequest.STATUS_CLOSED)\
+        return PullRequest.query() \
+                                .join(PullRequestReviewers) \
+                                .filter(PullRequestReviewers.user_id == user) \
+                                .filter(PullRequest.status != PullRequest.STATUS_CLOSED) \
                                 .count()
 
     def get_all(self, repo_name, from_=False, closed=False):
@@ -149,6 +149,7 @@ class PullRequestModel(BaseModel):
             'pr_url': pr_url,
             'pr_revisions': revision_data,
             'repo_name': pr.other_repo.repo_name,
+            'org_repo_name': pr.org_repo.repo_name,
             'pr_nice_id': pr.nice_id(),
             'ref': org_ref_name,
             'pr_username': user.username,
@@ -184,9 +185,9 @@ class PullRequestModel(BaseModel):
     def update_reviewers(self, user, pull_request, reviewers_ids):
         reviewers_ids = set(reviewers_ids)
         pull_request = self.__get_pull_request(pull_request)
-        current_reviewers = PullRequestReviewers.query()\
+        current_reviewers = PullRequestReviewers.query() \
                             .filter(PullRequestReviewers.pull_request==
-                                   pull_request)\
+                                   pull_request) \
                             .all()
         current_reviewers_ids = set([x.user.user_id for x in current_reviewers])
 
@@ -198,9 +199,9 @@ class PullRequestModel(BaseModel):
 
         log.debug("Removing %s reviewers", to_remove)
         for uid in to_remove:
-            reviewer = PullRequestReviewers.query()\
+            reviewer = PullRequestReviewers.query() \
                     .filter(PullRequestReviewers.user_id==uid,
-                            PullRequestReviewers.pull_request==pull_request)\
+                            PullRequestReviewers.pull_request==pull_request) \
                     .scalar()
             if reviewer:
                 Session().delete(reviewer)

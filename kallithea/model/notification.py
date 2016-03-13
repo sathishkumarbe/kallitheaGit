@@ -59,7 +59,7 @@ class NotificationModel(BaseModel):
 
     def create(self, created_by, subject, body, recipients=None,
                type_=Notification.TYPE_MESSAGE, with_email=True,
-               email_kwargs={}):
+               email_kwargs=None, repo_name=None):
         """
 
         Creates notification of given type
@@ -75,7 +75,7 @@ class NotificationModel(BaseModel):
         :param email_kwargs: additional dict to pass as args to email template
         """
         from kallithea.lib.celerylib import tasks, run_task
-
+        email_kwargs = email_kwargs or {}
         if recipients and not getattr(recipients, '__iter__', False):
             raise Exception('recipients must be a list or iterable')
 
@@ -123,7 +123,7 @@ class NotificationModel(BaseModel):
             ## this is passed into template
             html_kwargs = {
                       'subject': subject,
-                      'body': h.rst_w_mentions(body),
+                      'body': h.render_w_mentions(body, repo_name),
                       'when': h.fmt_date(notif.created_on),
                       'user': notif.created_by_user.username,
                       }
@@ -137,11 +137,11 @@ class NotificationModel(BaseModel):
 
             html_kwargs.update(email_kwargs)
             txt_kwargs.update(email_kwargs)
-            email_subject = EmailNotificationModel()\
+            email_subject = EmailNotificationModel() \
                                 .get_email_description(type_, **txt_kwargs)
-            email_txt_body = EmailNotificationModel()\
+            email_txt_body = EmailNotificationModel() \
                                 .get_email_tmpl(type_, 'txt', **txt_kwargs)
-            email_html_body = EmailNotificationModel()\
+            email_html_body = EmailNotificationModel() \
                                 .get_email_tmpl(type_, 'html', **html_kwargs)
 
             run_task(tasks.send_email, [rec.email], email_subject, email_txt_body,
@@ -155,10 +155,10 @@ class NotificationModel(BaseModel):
             notification = self.__get_notification(notification)
             user = self._get_user(user)
             if notification and user:
-                obj = UserNotification.query()\
-                        .filter(UserNotification.user == user)\
+                obj = UserNotification.query() \
+                        .filter(UserNotification.user == user) \
                         .filter(UserNotification.notification
-                                == notification)\
+                                == notification) \
                         .one()
                 Session().delete(obj)
                 return True
@@ -175,12 +175,12 @@ class NotificationModel(BaseModel):
         """
         user = self._get_user(user)
 
-        q = UserNotification.query()\
-            .filter(UserNotification.user == user)\
+        q = UserNotification.query() \
+            .filter(UserNotification.user == user) \
             .join((Notification, UserNotification.notification_id ==
-                                 Notification.notification_id))\
-            .options(joinedload('notification'))\
-            .options(subqueryload('notification.created_by_user'))\
+                                 Notification.notification_id)) \
+            .options(joinedload('notification')) \
+            .options(subqueryload('notification.created_by_user')) \
             .order_by(Notification.created_on.desc())
 
         if filter_:
@@ -193,10 +193,10 @@ class NotificationModel(BaseModel):
             notification = self.__get_notification(notification)
             user = self._get_user(user)
             if notification and user:
-                obj = UserNotification.query()\
-                        .filter(UserNotification.user == user)\
+                obj = UserNotification.query() \
+                        .filter(UserNotification.user == user) \
                         .filter(UserNotification.notification
-                                == notification)\
+                                == notification) \
                         .one()
                 obj.read = True
                 Session().add(obj)
@@ -207,9 +207,9 @@ class NotificationModel(BaseModel):
 
     def mark_all_read_for_user(self, user, filter_=None):
         user = self._get_user(user)
-        q = UserNotification.query()\
-            .filter(UserNotification.user == user)\
-            .filter(UserNotification.read == False)\
+        q = UserNotification.query() \
+            .filter(UserNotification.user == user) \
+            .filter(UserNotification.read == False) \
             .join((Notification, UserNotification.notification_id ==
                                  Notification.notification_id))
         if filter_:
@@ -223,22 +223,22 @@ class NotificationModel(BaseModel):
 
     def get_unread_cnt_for_user(self, user):
         user = self._get_user(user)
-        return UserNotification.query()\
-                .filter(UserNotification.read == False)\
+        return UserNotification.query() \
+                .filter(UserNotification.read == False) \
                 .filter(UserNotification.user == user).count()
 
     def get_unread_for_user(self, user):
         user = self._get_user(user)
-        return [x.notification for x in UserNotification.query()\
-                .filter(UserNotification.read == False)\
+        return [x.notification for x in UserNotification.query() \
+                .filter(UserNotification.read == False) \
                 .filter(UserNotification.user == user).all()]
 
     def get_user_notification(self, user, notification):
         user = self._get_user(user)
         notification = self.__get_notification(notification)
 
-        return UserNotification.query()\
-            .filter(UserNotification.notification == notification)\
+        return UserNotification.query() \
+            .filter(UserNotification.notification == notification) \
             .filter(UserNotification.user == user).scalar()
 
     def make_description(self, notification, show_age=True):

@@ -31,8 +31,8 @@ import formencode
 
 from formencode import htmlfill
 from pylons import request, tmpl_context as c, url, config
-from pylons.controllers.util import redirect
 from pylons.i18n.translation import _
+from webob.exc import HTTPFound
 
 from sqlalchemy.orm import joinedload
 from sqlalchemy.sql.expression import func
@@ -90,8 +90,8 @@ class UserGroupsController(BaseController):
     def index(self, format='html'):
         """GET /users_groups: All items in the collection"""
         # url('users_groups')
-        _list = UserGroup.query()\
-                        .order_by(func.lower(UserGroup.users_group_name))\
+        _list = UserGroup.query() \
+                        .order_by(func.lower(UserGroup.users_group_name)) \
                         .all()
         group_iter = UserGroupList(_list, perm_set=['usergroup.admin'])
         user_groups_data = []
@@ -163,7 +163,7 @@ class UserGroupsController(BaseController):
             h.flash(_('Error occurred during creation of user group %s') \
                     % request.POST.get('users_group_name'), category='error')
 
-        return redirect(url('users_groups'))
+        raise HTTPFound(location=url('users_groups'))
 
     @HasPermissionAnyDecorator('hg.admin', 'hg.usergroup.create.true')
     def new(self, format='html'):
@@ -224,7 +224,7 @@ class UserGroupsController(BaseController):
             h.flash(_('Error occurred during update of user group %s') \
                     % request.POST.get('users_group_name'), category='error')
 
-        return redirect(url('edit_users_group', id=id))
+        raise HTTPFound(location=url('edit_users_group', id=id))
 
     @HasUserGroupPermissionAnyDecorator('usergroup.admin')
     def delete(self, id):
@@ -246,7 +246,7 @@ class UserGroupsController(BaseController):
             log.error(traceback.format_exc())
             h.flash(_('An error occurred during deletion of user group'),
                     category='error')
-        return redirect(url('users_groups'))
+        raise HTTPFound(location=url('users_groups'))
 
     def show(self, id, format='html'):
         """GET /user_groups/id: Show a specific item"""
@@ -312,13 +312,13 @@ class UserGroupsController(BaseController):
                                                  form['perms_updates'])
         except RepoGroupAssignmentError:
             h.flash(_('Target group cannot be the same'), category='error')
-            return redirect(url('edit_user_group_perms', id=id))
+            raise HTTPFound(location=url('edit_user_group_perms', id=id))
         #TODO: implement this
         #action_logger(self.authuser, 'admin_changed_repo_permissions',
         #              repo_name, self.ip_addr, self.sa)
         Session().commit()
         h.flash(_('User group permissions updated'), category='success')
-        return redirect(url('edit_user_group_perms', id=id))
+        raise HTTPFound(location=url('edit_user_group_perms', id=id))
 
     @HasUserGroupPermissionAnyDecorator('usergroup.admin')
     def delete_perms(self, id):
@@ -362,20 +362,20 @@ class UserGroupsController(BaseController):
             'repositories': {},
             'repositories_groups': {}
         }
-        ugroup_repo_perms = UserGroupRepoToPerm.query()\
-            .options(joinedload(UserGroupRepoToPerm.permission))\
-            .options(joinedload(UserGroupRepoToPerm.repository))\
-            .filter(UserGroupRepoToPerm.users_group_id == id)\
+        ugroup_repo_perms = UserGroupRepoToPerm.query() \
+            .options(joinedload(UserGroupRepoToPerm.permission)) \
+            .options(joinedload(UserGroupRepoToPerm.repository)) \
+            .filter(UserGroupRepoToPerm.users_group_id == id) \
             .all()
 
         for gr in ugroup_repo_perms:
             permissions['repositories'][gr.repository.repo_name]  \
                 = gr.permission.permission_name
 
-        ugroup_group_perms = UserGroupRepoGroupToPerm.query()\
-            .options(joinedload(UserGroupRepoGroupToPerm.permission))\
-            .options(joinedload(UserGroupRepoGroupToPerm.group))\
-            .filter(UserGroupRepoGroupToPerm.users_group_id == id)\
+        ugroup_group_perms = UserGroupRepoGroupToPerm.query() \
+            .options(joinedload(UserGroupRepoGroupToPerm.permission)) \
+            .options(joinedload(UserGroupRepoGroupToPerm.group)) \
+            .filter(UserGroupRepoGroupToPerm.users_group_id == id) \
             .all()
 
         for gr in ugroup_group_perms:
@@ -418,8 +418,8 @@ class UserGroupsController(BaseController):
             Session().add(user_group)
             usergroup_model = UserGroupModel()
 
-            defs = UserGroupToPerm.query()\
-                .filter(UserGroupToPerm.users_group == user_group)\
+            defs = UserGroupToPerm.query() \
+                .filter(UserGroupToPerm.users_group == user_group) \
                 .all()
             for ug in defs:
                 Session().delete(ug)
@@ -444,7 +444,7 @@ class UserGroupsController(BaseController):
             h.flash(_('An error occurred during permissions saving'),
                     category='error')
 
-        return redirect(url('edit_user_group_default_perms', id=id))
+        raise HTTPFound(location=url('edit_user_group_default_perms', id=id))
 
     @HasUserGroupPermissionAnyDecorator('usergroup.admin')
     def edit_advanced(self, id):

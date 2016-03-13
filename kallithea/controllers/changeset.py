@@ -29,19 +29,18 @@ Original author and date, and relevant copyright and licensing information is be
 import logging
 import traceback
 from collections import defaultdict
-from webob.exc import HTTPForbidden, HTTPBadRequest, HTTPNotFound
 
 from pylons import tmpl_context as c, request, response
 from pylons.i18n.translation import _
-from pylons.controllers.util import redirect
-from kallithea.lib.utils import jsonify
+from webob.exc import HTTPFound, HTTPForbidden, HTTPBadRequest, HTTPNotFound
 
+from kallithea.lib.utils import jsonify
 from kallithea.lib.vcs.exceptions import RepositoryError, \
     ChangesetDoesNotExistError
 
 from kallithea.lib.compat import json
 import kallithea.lib.helpers as h
-from kallithea.lib.auth import LoginRequired, HasRepoPermissionAnyDecorator,\
+from kallithea.lib.auth import LoginRequired, HasRepoPermissionAnyDecorator, \
     NotAnonymous
 from kallithea.lib.base import BaseRepoController, render
 from kallithea.lib.utils import action_logger
@@ -173,6 +172,27 @@ def _context_url(GET, fileid=None):
     return h.link_to(icon, h.url.current(**params), title=lbl, class_='tooltip')
 
 
+# Could perhaps be nice to have in the model but is too high level ...
+def create_comment(text, status, f_path, line_no, revision=None, pull_request_id=None, closing_pr=None):
+    """Comment functionality shared between changesets and pullrequests"""
+    f_path = f_path or None
+    line_no = line_no or None
+
+    comment = ChangesetCommentsModel().create(
+        text=text,
+        repo=c.db_repo.repo_id,
+        user=c.authuser.user_id,
+        revision=revision,
+        pull_request=pull_request_id,
+        f_path=f_path,
+        line_no=line_no,
+        status_change=ChangesetStatus.get_status_lbl(status) if status else None,
+        closing_pr=closing_pr,
+    )
+
+    return comment
+
+
 class ChangesetController(BaseRepoController):
 
     def __before__(self):
@@ -185,6 +205,7 @@ class ChangesetController(BaseRepoController):
         c.user_groups_array = repo_model.get_user_groups_js()
 
     def _index(self, revision, method):
+        c.pull_request = None
         c.anchor_url = anchor_url
         c.ignorews_url = _ignorews_url
         c.context_url = _context_url
@@ -207,7 +228,7 @@ class ChangesetController(BaseRepoController):
             if not c.cs_ranges:
                 raise RepositoryError('Changeset range returned empty result')
 
-        except(ChangesetDoesNotExistError,), e:
+        except ChangesetDoesNotExistError:
             log.debug(traceback.format_exc())
             msg = _('Such revision does not exist for this repository')
             h.flash(msg, category='error')
@@ -226,7 +247,6 @@ class ChangesetController(BaseRepoController):
 
         # Iterate over ranges (default changeset view is always one changeset)
         for changeset in c.cs_ranges:
-            inlines = []
             if method == 'show':
                 c.statuses.extend([ChangesetStatusModel().get_status(
                             c.db_repo.repo_id, changeset.raw_id)])
@@ -244,7 +264,7 @@ class ChangesetController(BaseRepoController):
                                               changeset.raw_id, with_revisions=True)
                                 if st.changeset_comment_id is not None)
 
-                inlines = ChangesetCommentsModel()\
+                inlines = ChangesetCommentsModel() \
                             .get_inline_comments(c.db_repo.repo_id,
                                                  revision=changeset.raw_id)
                 c.inline_comments.extend(inlines)
@@ -254,7 +274,7 @@ class ChangesetController(BaseRepoController):
             cs2 = changeset.raw_id
             cs1 = changeset.parents[0].raw_id if changeset.parents else EmptyChangeset().raw_id
             context_lcl = get_line_ctx('', request.GET)
-            ign_whitespace_lcl = ign_whitespace_lcl = get_ignore_ws('', request.GET)
+            ign_whitespace_lcl = get_ignore_ws('', request.GET)
 
             _diff = c.db_repo_scm_instance.get_diff(cs1, cs2,
                 ignore_whitespace=ign_whitespace_lcl, context=context_lcl)
@@ -349,73 +369,51 @@ class ChangesetController(BaseRepoController):
                                    'repository.admin')
     @jsonify
     def comment(self, repo_name, revision):
+        assert request.environ.get('HTTP_X_PARTIAL_XHR')
+
         status = request.POST.get('changeset_status')
         text = request.POST.get('text', '').strip()
 
-        c.comment = comment = ChangesetCommentsModel().create(
-            text=text,
-            repo=c.db_repo.repo_id,
-            user=c.authuser.user_id,
+        c.comment = create_comment(
+            text,
+            status,
             revision=revision,
             f_path=request.POST.get('f_path'),
             line_no=request.POST.get('line'),
-            status_change=(ChangesetStatus.get_status_lbl(status)
-                           if status else None)
         )
 
         # get status if set !
         if status:
             # if latest status was from pull request and it's closed
-            # disallow changing status !
-            # dont_allow_on_closed_pull_request = True !
-
+            # disallow changing status ! RLY?
             try:
                 ChangesetStatusModel().set_status(
                     c.db_repo.repo_id,
                     status,
                     c.authuser.user_id,
-                    comment,
+                    c.comment,
                     revision=revision,
-                    dont_allow_on_closed_pull_request=True
+                    dont_allow_on_closed_pull_request=True,
                 )
             except StatusChangeOnClosedPullRequestError:
-                log.debug(traceback.format_exc())
-                msg = _('Changing status on a changeset associated with '
-                        'a closed pull request is not allowed')
-                h.flash(msg, category='warning')
-                return redirect(h.url('changeset_home', repo_name=repo_name,
-                                      revision=revision))
+                log.debug('cannot change status on %s with closed pull request', revision)
+                raise HTTPBadRequest()
+
         action_logger(self.authuser,
                       'user_commented_revision:%s' % revision,
                       c.db_repo, self.ip_addr, self.sa)
 
         Session().commit()
 
-        if not request.environ.get('HTTP_X_PARTIAL_XHR'):
-            return redirect(h.url('changeset_home', repo_name=repo_name,
-                                  revision=revision))
-        #only ajax below
         data = {
            'target_id': h.safeid(h.safe_unicode(request.POST.get('f_path'))),
         }
-        if comment is not None:
-            data.update(comment.get_dict())
+        if c.comment is not None:
+            data.update(c.comment.get_dict())
             data.update({'rendered_text':
                          render('changeset/changeset_comment_block.html')})
 
         return data
-
-    @LoginRequired()
-    @NotAnonymous()
-    @HasRepoPermissionAnyDecorator('repository.read', 'repository.write',
-                                   'repository.admin')
-    def preview_comment(self):
-        if not request.environ.get('HTTP_X_PARTIAL_XHR'):
-            raise HTTPBadRequest()
-        text = request.POST.get('text')
-        if text:
-            return h.rst_w_mentions(text)
-        return ''
 
     @LoginRequired()
     @NotAnonymous()

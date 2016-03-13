@@ -89,7 +89,8 @@ def UniqueListFromString():
     return _UniqueListFromString
 
 
-def ValidUsername(edit=False, old_data={}):
+def ValidUsername(edit=False, old_data=None):
+    old_data = old_data or {}
     class _validator(formencode.validators.FancyValidator):
         messages = {
             'username_exists': _('Username "%(username)s" already exists'),
@@ -135,7 +136,7 @@ def ValidRepoUser():
 
         def validate_python(self, value, state):
             try:
-                User.query().filter(User.active == True)\
+                User.query().filter(User.active == True) \
                     .filter(User.username == value).one()
             except sqlalchemy.exc.InvalidRequestError: # NoResultFound/MultipleResultsFound
                 msg = M(self, 'invalid_username', state, username=value)
@@ -146,7 +147,8 @@ def ValidRepoUser():
     return _validator
 
 
-def ValidUserGroup(edit=False, old_data={}):
+def ValidUserGroup(edit=False, old_data=None):
+    old_data = old_data or {}
     class _validator(formencode.validators.FancyValidator):
         messages = {
             'invalid_group': _('Invalid user group name'),
@@ -187,7 +189,9 @@ def ValidUserGroup(edit=False, old_data={}):
     return _validator
 
 
-def ValidRepoGroup(edit=False, old_data={}):
+def ValidRepoGroup(edit=False, old_data=None):
+    old_data = old_data or {}
+
     class _validator(formencode.validators.FancyValidator):
         messages = {
             'group_parent_id': _('Cannot assign this group as parent'),
@@ -222,9 +226,9 @@ def ValidRepoGroup(edit=False, old_data={}):
             if old_gname != group_name or not edit:
 
                 # check group
-                gr = RepoGroup.query()\
-                      .filter(RepoGroup.group_name == slug)\
-                      .filter(RepoGroup.group_parent_id == group_parent_id)\
+                gr = RepoGroup.query() \
+                      .filter(RepoGroup.group_name == slug) \
+                      .filter(RepoGroup.group_parent_id == group_parent_id) \
                       .scalar()
 
                 if gr is not None:
@@ -234,8 +238,8 @@ def ValidRepoGroup(edit=False, old_data={}):
                     )
 
                 # check for same repo
-                repo = Repository.query()\
-                      .filter(Repository.repo_name == slug)\
+                repo = Repository.query() \
+                      .filter(Repository.repo_name == slug) \
                       .scalar()
 
                 if repo is not None:
@@ -309,7 +313,7 @@ def ValidAuth():
             # authenticate returns unused dict but has called
             # plugin._authenticate which has create_or_update'ed the username user in db
             if auth_modules.authenticate(username, password) is None:
-                user = User.get_by_username(username)
+                user = User.get_by_username_or_email(username)
                 if user and not user.active:
                     log.warning('user %s is disabled', username)
                     msg = M(self, 'invalid_auth', state)
@@ -338,7 +342,9 @@ def ValidAuthToken():
     return _validator
 
 
-def ValidRepoName(edit=False, old_data={}):
+def ValidRepoName(edit=False, old_data=None):
+    old_data = old_data or {}
+
     class _validator(formencode.validators.FancyValidator):
         messages = {
             'invalid_repo_name':
@@ -373,7 +379,6 @@ def ValidRepoName(edit=False, old_data={}):
             return value
 
         def validate_python(self, value, state):
-
             repo_name = value.get('repo_name')
             repo_name_full = value.get('repo_name_full')
             group_path = value.get('group_path')
@@ -483,7 +488,9 @@ def ValidCloneUri():
     return _validator
 
 
-def ValidForkType(old_data={}):
+def ValidForkType(old_data=None):
+    old_data = old_data or {}
+
     class _validator(formencode.validators.FancyValidator):
         messages = {
             'invalid_fork_type': _('Fork has to be the same type as parent')
@@ -644,12 +651,12 @@ def ValidPerms(type_='repo'):
             for k, v, t in perms_new:
                 try:
                     if t is 'user':
-                        self.user_db = User.query()\
-                            .filter(User.active == True)\
+                        self.user_db = User.query() \
+                            .filter(User.active == True) \
                             .filter(User.username == k).one()
                     if t is 'users_group':
-                        self.user_db = UserGroup.query()\
-                            .filter(UserGroup.users_group_active == True)\
+                        self.user_db = UserGroup.query() \
+                            .filter(UserGroup.users_group_active == True) \
                             .filter(UserGroup.users_group_name == k).one()
 
                 except Exception:
@@ -699,7 +706,9 @@ def ValidPath():
     return _validator
 
 
-def UniqSystemEmail(old_data={}):
+def UniqSystemEmail(old_data=None):
+    old_data = old_data or {}
+
     class _validator(formencode.validators.FancyValidator):
         messages = {
             'email_taken': _('This email address is already in use')
@@ -710,7 +719,7 @@ def UniqSystemEmail(old_data={}):
 
         def validate_python(self, value, state):
             if (old_data.get('email') or '').lower() != value:
-                user = User.get_by_email(value, case_insensitive=True)
+                user = User.get_by_email(value)
                 if user is not None:
                     msg = M(self, 'email_taken', state)
                     raise formencode.Invalid(msg, value, state,
@@ -729,7 +738,7 @@ def ValidSystemEmail():
             return value.lower()
 
         def validate_python(self, value, state):
-            user = User.get_by_email(value, case_insensitive=True)
+            user = User.get_by_email(value)
             if user is None:
                 msg = M(self, 'non_existing_email', state, email=value)
                 raise formencode.Invalid(msg, value, state,

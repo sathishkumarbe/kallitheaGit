@@ -186,7 +186,7 @@ def action_logger(user, action, repo, ipaddr='', sa=None, commit=False):
         repo_obj = Repository.get_by_repo_name(repo_name)
     else:
         repo_obj = None
-        repo_name = ''
+        repo_name = u''
 
     user_log = UserLog()
     user_log.user_id = user_obj.user_id
@@ -418,6 +418,21 @@ def set_vcs_config(config):
                                                         'utf8'), sep=',')
 
 
+def set_indexer_config(config):
+    """
+    Update Whoosh index mapping
+
+    :param config: kallithea.CONFIG
+    """
+    from kallithea.config import conf
+
+    log.debug('adding extra into INDEX_EXTENSIONS')
+    conf.INDEX_EXTENSIONS.extend(re.split('\s+', config.get('index.extensions', '')))
+
+    log.debug('adding extra into INDEX_FILENAMES')
+    conf.INDEX_FILENAMES.extend(re.split('\s+', config.get('index.filenames', '')))
+
+
 def map_groups(path):
     """
     Given a full path to a repository, create all nested groups that this
@@ -436,7 +451,7 @@ def map_groups(path):
     rgm = RepoGroupModel(sa)
     owner = User.get_first_admin()
     for lvl, group_name in enumerate(groups):
-        group_name = '/'.join(groups[:lvl] + [group_name])
+        group_name = u'/'.join(groups[:lvl] + [group_name])
         group = RepoGroup.get_by_group_name(group_name)
         desc = '%s group' % group_name
 
@@ -528,8 +543,9 @@ def repo2db_mapper(initial_repo_list, remove_obsolete=False,
 
     removed = []
     # remove from database those repositories that are not in the filesystem
+    unicode_initial_repo_list = set(safe_unicode(name) for name in initial_repo_list)
     for repo in sa.query(Repository).all():
-        if repo.repo_name not in initial_repo_list.keys():
+        if repo.repo_name not in unicode_initial_repo_list:
             if remove_obsolete:
                 log.debug("Removing non-existing repository found in db `%s`",
                           repo.repo_name)
@@ -639,7 +655,7 @@ def create_test_index(repo_location, config, full_index):
     try:
         l = DaemonLock(file_=jn(dn(index_location), 'make_index.lock'))
         WhooshIndexingDaemon(index_location=index_location,
-                             repo_location=repo_location)\
+                             repo_location=repo_location) \
             .run(full_index=full_index)
         l.release()
     except LockHeld:
@@ -722,17 +738,6 @@ class BasePasterCommand(Command):
     takes_config_file = 1
     requires_config_file = True
 
-    def notify_msg(self, msg, log=False):
-        """Make a notification to user, additionally if logger is passed
-        it logs this action using given logger
-
-        :param msg: message that will be printed to user
-        :param log: logging instance, to use to additionally log this message
-
-        """
-        if log and isinstance(log, logging):
-            log(msg)
-
     def run(self, args):
         """
         Overrides Command.run
@@ -775,11 +780,10 @@ class BasePasterCommand(Command):
         Inits SqlAlchemy Session
         """
         logging.config.fileConfig(self.path_to_ini_file)
+
         from pylons import config
         from kallithea.model import init_model
         from kallithea.lib.utils2 import engine_from_config
-
-        #get to remove repos !!
         add_cache(config)
         engine = engine_from_config(config, 'sqlalchemy.db1.')
         init_model(engine)
@@ -853,7 +857,7 @@ def conditional_cache(region, prefix, condition, func):
             return data
 
         # denpending from condition the compute is wrapped in cache or not
-        compute = conditional_cache('short_term', 'cache_desc', codnition=True, func=func)
+        compute = conditional_cache('short_term', 'cache_desc', condition=True, func=func)
         return compute(arg)
 
     :param region: name of cache region

@@ -26,6 +26,7 @@ Original author and date, and relevant copyright and licensing information is be
 """
 
 import os
+import posixpath
 import re
 import time
 import traceback
@@ -46,9 +47,9 @@ from kallithea.lib.vcs.backends.base import EmptyChangeset
 
 from kallithea import BACKENDS
 from kallithea.lib import helpers as h
-from kallithea.lib.utils2 import safe_str, safe_unicode, get_server_url,\
+from kallithea.lib.utils2 import safe_str, safe_unicode, get_server_url, \
     _set_extras
-from kallithea.lib.auth import HasRepoPermissionAny, HasRepoGroupPermissionAny,\
+from kallithea.lib.auth import HasRepoPermissionAny, HasRepoGroupPermissionAny, \
     HasUserGroupPermissionAny, HasPermissionAny, HasPermissionAll
 from kallithea.lib.utils import get_filesystem_repos, make_ui, \
     action_logger
@@ -311,8 +312,8 @@ class ScmModel(BaseModel):
         :param simple: use SimpleCachedList - one without the SCM info
         """
         if all_repos is None:
-            all_repos = self.sa.query(Repository)\
-                        .filter(Repository.group_id == None)\
+            all_repos = self.sa.query(Repository) \
+                        .filter(Repository.group_id == None) \
                         .order_by(func.lower(Repository.repo_name)).all()
         if simple:
             repo_iter = SimpleCachedRepoList(all_repos,
@@ -327,25 +328,25 @@ class ScmModel(BaseModel):
 
     def get_repo_groups(self, all_groups=None):
         if all_groups is None:
-            all_groups = RepoGroup.query()\
+            all_groups = RepoGroup.query() \
                 .filter(RepoGroup.group_parent_id == None).all()
         return [x for x in RepoGroupList(all_groups)]
 
-    def mark_for_invalidation(self, repo_name, delete=False):
+    def mark_for_invalidation(self, repo_name):
         """
         Mark caches of this repo invalid in the database.
 
         :param repo_name: the repo for which caches should be marked invalid
         """
-        CacheInvalidation.set_invalidate(repo_name, delete=delete)
+        CacheInvalidation.set_invalidate(repo_name)
         repo = Repository.get_by_repo_name(repo_name)
         if repo is not None:
             repo.update_changeset_cache()
 
     def toggle_following_repo(self, follow_repo_id, user_id):
 
-        f = self.sa.query(UserFollowing)\
-            .filter(UserFollowing.follows_repo_id == follow_repo_id)\
+        f = self.sa.query(UserFollowing) \
+            .filter(UserFollowing.follows_repo_id == follow_repo_id) \
             .filter(UserFollowing.user_id == user_id).scalar()
 
         if f is not None:
@@ -373,8 +374,8 @@ class ScmModel(BaseModel):
             raise
 
     def toggle_following_user(self, follow_user_id, user_id):
-        f = self.sa.query(UserFollowing)\
-            .filter(UserFollowing.follows_user_id == follow_user_id)\
+        f = self.sa.query(UserFollowing) \
+            .filter(UserFollowing.follows_user_id == follow_user_id) \
             .filter(UserFollowing.user_id == user_id).scalar()
 
         if f is not None:
@@ -395,11 +396,11 @@ class ScmModel(BaseModel):
             raise
 
     def is_following_repo(self, repo_name, user_id, cache=False):
-        r = self.sa.query(Repository)\
+        r = self.sa.query(Repository) \
             .filter(Repository.repo_name == repo_name).scalar()
 
-        f = self.sa.query(UserFollowing)\
-            .filter(UserFollowing.follows_repository == r)\
+        f = self.sa.query(UserFollowing) \
+            .filter(UserFollowing.follows_repository == r) \
             .filter(UserFollowing.user_id == user_id).scalar()
 
         return f is not None
@@ -407,8 +408,8 @@ class ScmModel(BaseModel):
     def is_following_user(self, username, user_id, cache=False):
         u = User.get_by_username(username)
 
-        f = self.sa.query(UserFollowing)\
-            .filter(UserFollowing.follows_user == u)\
+        f = self.sa.query(UserFollowing) \
+            .filter(UserFollowing.follows_user == u) \
             .filter(UserFollowing.user_id == user_id).scalar()
 
         return f is not None
@@ -416,18 +417,18 @@ class ScmModel(BaseModel):
     def get_followers(self, repo):
         repo = self._get_repo(repo)
 
-        return self.sa.query(UserFollowing)\
+        return self.sa.query(UserFollowing) \
                 .filter(UserFollowing.follows_repository == repo).count()
 
     def get_forks(self, repo):
         repo = self._get_repo(repo)
-        return self.sa.query(Repository)\
+        return self.sa.query(Repository) \
                 .filter(Repository.fork == repo).count()
 
     def get_pull_requests(self, repo):
         repo = self._get_repo(repo)
-        return self.sa.query(PullRequest)\
-                .filter(PullRequest.other_repo == repo)\
+        return self.sa.query(PullRequest) \
+                .filter(PullRequest.other_repo == repo) \
                 .filter(PullRequest.status != PullRequest.STATUS_CLOSED).count()
 
     def mark_as_fork(self, repo, fork, user):
@@ -575,7 +576,7 @@ class ScmModel(BaseModel):
         if f_path.startswith('/') or f_path.startswith('.') or '../' in f_path:
             raise NonRelativePathError('%s is not an relative path' % f_path)
         if f_path:
-            f_path = os.path.normpath(f_path)
+            f_path = posixpath.normpath(f_path)
         return f_path
 
     def get_nodes(self, repo_name, revision, root_path='/', flat=True):
@@ -628,8 +629,8 @@ class ScmModel(BaseModel):
 
         processed_nodes = []
         for f_path in nodes:
-            f_path = self._sanitize_path(f_path)
             content = nodes[f_path]['content']
+            f_path = self._sanitize_path(f_path)
             f_path = safe_str(f_path)
             # decoding here will force that we have proper encoded values
             # in any other case this will throw exceptions and deny commit

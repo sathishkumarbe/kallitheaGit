@@ -346,7 +346,7 @@ information check out the Kallithea logs, any error messages sent from LDAP
 will be saved there.
 
 Active Directory
-''''''''''''''''
+^^^^^^^^^^^^^^^^
 
 Kallithea can use Microsoft Active Directory for user authentication.  This
 is done through an LDAP or LDAPS connection to Active Directory.  The
@@ -383,7 +383,7 @@ It's also possible for an administrator to create accounts and configure their
 permissions before the user logs in for the first time, using the :ref:`create-user` API.
 
 Container-based authentication
-''''''''''''''''''''''''''''''
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 In a container-based authentication setup, Kallithea reads the user name from
 the ``REMOTE_USER`` server variable provided by the WSGI container.
@@ -393,7 +393,7 @@ to configure it to require authentication on the location configured for
 Kallithea.
 
 Proxy pass-through authentication
-'''''''''''''''''''''''''''''''''
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 In a proxy pass-through authentication setup, Kallithea reads the user name
 from the ``X-Forwarded-User`` request header, which should be configured to be
@@ -426,6 +426,74 @@ reverse-proxy setup with basic auth:
       RewriteRule .* - [E=RU:%1]
       RequestHeader set X-Forwarded-User %{RU}e
     </Location>
+
+Setting metadata in container/reverse-proxy
+'''''''''''''''''''''''''''''''''''''''''''
+
+When a new user account is created on the first login, Kallithea has no information about
+the user's email and full name. So you can set some additional request headers like in the
+example below. In this example the user is authenticated via Kerberos and an Apache
+mod_python fixup handler is used to get the user information from a LDAP server. But you
+could set the request headers however you want.
+
+.. code-block:: apache
+
+    <Location /someprefix>
+      ProxyPass http://127.0.0.1:5000/someprefix
+      ProxyPassReverse http://127.0.0.1:5000/someprefix
+      SetEnvIf X-Url-Scheme https HTTPS=1
+
+      AuthName "Kerberos Login"
+      AuthType Kerberos
+      Krb5Keytab /etc/apache2/http.keytab
+      KrbMethodK5Passwd off
+      KrbVerifyKDC on
+      Require valid-user
+
+      PythonFixupHandler ldapmetadata
+
+      RequestHeader set X_REMOTE_USER %{X_REMOTE_USER}e
+      RequestHeader set X_REMOTE_EMAIL %{X_REMOTE_EMAIL}e
+      RequestHeader set X_REMOTE_FIRSTNAME %{X_REMOTE_FIRSTNAME}e
+      RequestHeader set X_REMOTE_LASTNAME %{X_REMOTE_LASTNAME}e
+    </Location>
+
+.. code-block:: python
+
+    from mod_python import apache
+    import ldap
+
+    LDAP_SERVER = "ldap://server.mydomain.com:389"
+    LDAP_USER = ""
+    LDAP_PASS = ""
+    LDAP_ROOT = "dc=mydomain,dc=com"
+    LDAP_FILTER = "sAMAcountName=%s"
+    LDAP_ATTR_LIST = ['sAMAcountName','givenname','sn','mail']
+
+    def fixuphandler(req):
+        if req.user is None:
+            # no user to search for
+            return apache.OK
+        else:
+            try:
+                if('\\' in req.user):
+                    username = req.user.split('\\')[1]
+                elif('@' in req.user):
+                    username = req.user.split('@')[0]
+                else:
+                    username = req.user
+                l = ldap.initialize(LDAP_SERVER)
+                l.simple_bind_s(LDAP_USER, LDAP_PASS)
+                r = l.search_s(LDAP_ROOT, ldap.SCOPE_SUBTREE, LDAP_FILTER % username, attrlist=LDAP_ATTR_LIST)
+
+                req.subprocess_env['X_REMOTE_USER'] = username
+                req.subprocess_env['X_REMOTE_EMAIL'] = r[0][1]['mail'][0].lower()
+                req.subprocess_env['X_REMOTE_FIRSTNAME'] = "%s" % r[0][1]['givenname'][0]
+                req.subprocess_env['X_REMOTE_LASTNAME'] = "%s" % r[0][1]['sn'][0]
+            except Exception, e:
+                apache.log_error("error getting data from ldap %s" % str(e), apache.APLOG_ERR)
+
+            return apache.OK
 
 .. note::
    If you enable proxy pass-through authentication, make sure your server is
@@ -745,11 +813,6 @@ Or if using a dispatcher WSGI script with proper virtualenv activation:
 .. note::
    When running apache as root, please make sure it doesn't run Kallithea as
    root, for examply by adding: ``user=www-data group=www-data`` to the configuration.
-
-.. note::
-   If running Kallithea in multiprocess mode,
-   make sure you set ``instance_id = *`` in the configuration so each process
-   gets it's own cache invalidation key.
 
 Example WSGI dispatch script:
 

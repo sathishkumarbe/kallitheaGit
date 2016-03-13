@@ -203,27 +203,11 @@ ${self.repo_context_bar('changelog', c.changeset.raw_id)}
     ${comment.generate_comments()}
 
     ## main comment form and it status
-    ${comment.comments(h.url('changeset_comment', repo_name=c.repo_name, revision=c.changeset.raw_id),
-                       h.changeset_status(c.db_repo, c.changeset.raw_id))}
+    ${comment.comments()}
 
     ## FORM FOR MAKING JS ACTION AS CHANGESET COMMENTS
     <script type="text/javascript">
       $(document).ready(function(){
-          $('.show-inline-comments').change(function(e){
-              var target = e.currentTarget;
-              if(target == null){
-                  target = this;
-              }
-              var boxid = $(target).attr('id_for');
-              if(target.checked){
-                  $('#{0} .inline-comments'.format(boxid)).show();
-                  $('#{0} .inline-comments-button'.format(boxid)).show();
-              }else{
-                  $('#{0} .inline-comments'.format(boxid)).hide();
-                  $('#{0} .inline-comments-button'.format(boxid)).hide();
-              }
-          });
-
           $('.code-difftable').on('click', '.add-bubble', function(e){
               show_comment_form($(this));
           });

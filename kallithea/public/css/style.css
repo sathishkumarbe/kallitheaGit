@@ -208,6 +208,21 @@ div.rst-block pre,
     color: #B9B9B9;
 }
 
+.inline-comments-general.show-general-status .hidden.general-only {
+    display: block !important;
+}
+
+/* Bootstrap compatible */
+.show {
+    display: block !important;
+}
+.hidden {
+    display: none !important;
+}
+.invisible {
+    visibility: hidden;
+}
+
 .truncate {
        white-space: nowrap;
        overflow: hidden;
@@ -520,10 +535,6 @@ td.quick_repo_menu .menu_items a:hover {
 
 td.quick_repo_menu .menu_items .icon img {
     margin-bottom: -2px;
-}
-
-td.quick_repo_menu .menu_items.hidden {
-    display: none;
 }
 
 .dt_repo {
@@ -946,7 +957,7 @@ tbody .yui-dt-editable { cursor: pointer }
 }
 
 #content div.box div.message {
-    clear: both;
+    float: left;
     overflow: hidden;
     margin: 0;
     padding: 5px 0;
@@ -3440,10 +3451,6 @@ label.disabled {
     color: #aaa;
 }
 
-.btn.blue.hidden {
-    display: none;
-}
-
 .btn.active {
     font-weight: bold;
 }
@@ -4131,14 +4138,11 @@ div.rst-block pre {
 
 .comments .comment .text {
     background-color: #FAFAFA;
-}
-.comment .text div.rst-block p {
-    margin: 0.5em 0px !important;
+    margin: 6px;
 }
 
 .comments-number {
-    margin: 5px;
-    padding: 0px 0px 10px 0px;
+    padding: 0px 20px 10px;
     font-weight: bold;
     color: #666;
     font-size: 16px;
@@ -4190,19 +4194,6 @@ form.comment-form {
     padding: 5px 5px 5px 5px;
     color: #666;
 }
-.comment-form .comment-help .preview-btn,
-.comment-form .comment-help .edit-btn {
-    float: right;
-    margin: -6px 0px 0px 0px;
-}
-
-.comment-form .preview-box.unloaded,
-.comment-inline-form .preview-box.unloaded {
-    height: 50px;
-    text-align: center;
-    padding: 20px;
-    background-color: #fafafa;
-}
 
 .comment-form .comment-button {
     padding-top: 5px;
@@ -4218,7 +4209,6 @@ form.comment-form {
     float: right;
     margin: -1px 0px 0px 0px;
 }
-
 
 .show-inline-comments {
     position: relative;
@@ -4279,12 +4269,6 @@ form.comment-inline-form {
     color: #666;
 }
 
-.comment-inline-form .comment-help .preview-btn,
-.comment-inline-form .comment-help .edit-btn {
-    float: right;
-    margin: -6px 0px 0px 0px;
-}
-
 .comment-inline-form .comment-button {
     padding-top: 5px;
 }
@@ -4292,13 +4276,6 @@ form.comment-inline-form {
 /** comment inline **/
 .inline-comments {
     padding: 0 20px;
-}
-
-.inline-comments div.rst-block {
-    clear: both;
-    overflow: hidden;
-    margin: 0;
-    padding: 0 20px 0px;
 }
 
 .inline-comments .comment .comment-wrapp {
@@ -4338,6 +4315,7 @@ form.comment-inline-form {
 
 .inline-comments .comment .text {
     background-color: #FAFAFA;
+    margin: 6px;
 }
 
 .inline-comments .comments-number {
@@ -4345,9 +4323,6 @@ form.comment-inline-form {
     font-weight: bold;
     color: #666;
     font-size: 16px;
-}
-.inline-comments-button .add-comment {
-    margin: 2px 0px 8px 5px !important
 }
 
 input.status_change_radio {
@@ -4552,9 +4527,17 @@ span.pr-closed-tag {
 
 }
 
-.diff-container.hidden {
-    display: none;
-    overflow: hidden;
+.compare-revision-selector {
+    font-weight: bold;
+    font-size: 14px;
+}
+.compare-revision-selector > div {
+    display: inline-block;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+.compare-revision-selector .btn {
+    margin-bottom: 0;
 }
 
 
@@ -4572,6 +4555,7 @@ div.diffblock {
 div.diffblock.margined {
     margin: 0px 20px 0px 20px;
 }
+.compare-revision-selector,
 div.diffblock .code-header {
     border-bottom: 1px solid #CCCCCC;
     background: #EEEEEE;
