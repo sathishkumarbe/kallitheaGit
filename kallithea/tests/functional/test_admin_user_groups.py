@@ -3,10 +3,10 @@ from kallithea.tests import *
 from kallithea.model.db import UserGroup, UserGroupToPerm, Permission
 from kallithea.model.meta import Session
 
-TEST_USER_GROUP = 'admins_test'
+TEST_USER_GROUP = u'admins_test'
 
 
-class TestAdminUsersGroupsController(TestController):
+class TestAdminUsersGroupsController(TestControllerPytest):
 
     def test_index(self):
         self.log_user()
@@ -18,7 +18,7 @@ class TestAdminUsersGroupsController(TestController):
         users_group_name = TEST_USER_GROUP
         response = self.app.post(url('users_groups'),
                                  {'users_group_name': users_group_name,
-                                  'user_group_description': 'DESC',
+                                  'user_group_description': u'DESC',
                                   'active': True,
                                   '_authentication_token': self.authentication_token()})
         response.follow()
@@ -43,7 +43,7 @@ class TestAdminUsersGroupsController(TestController):
         users_group_name = TEST_USER_GROUP + 'another'
         response = self.app.post(url('users_groups'),
                                  {'users_group_name':users_group_name,
-                                  'user_group_description': 'DESC',
+                                  'user_group_description': u'DESC',
                                   'active': True,
                                   '_authentication_token': self.authentication_token()})
         response.follow()
@@ -51,13 +51,13 @@ class TestAdminUsersGroupsController(TestController):
         self.checkSessionFlash(response,
                                'Created user group ')
 
-        gr = Session().query(UserGroup)\
+        gr = Session().query(UserGroup) \
             .filter(UserGroup.users_group_name == users_group_name).one()
 
         response = self.app.post(url('users_group', id=gr.users_group_id),
             params={'_method': 'delete', '_authentication_token': self.authentication_token()})
 
-        gr = Session().query(UserGroup)\
+        gr = Session().query(UserGroup) \
             .filter(UserGroup.users_group_name == users_group_name).scalar()
 
         self.assertEqual(gr, None)
@@ -67,7 +67,7 @@ class TestAdminUsersGroupsController(TestController):
         users_group_name = TEST_USER_GROUP + 'another2'
         response = self.app.post(url('users_groups'),
                                  {'users_group_name': users_group_name,
-                                  'user_group_description': 'DESC',
+                                  'user_group_description': u'DESC',
                                   'active': True,
                                   '_authentication_token': self.authentication_token()})
         response.follow()
@@ -87,7 +87,7 @@ class TestAdminUsersGroupsController(TestController):
         p3 = Permission.get_by_key('hg.fork.none')
         # check if user has this perms, they should be here since
         # defaults are on
-        perms = UserGroupToPerm.query()\
+        perms = UserGroupToPerm.query() \
             .filter(UserGroupToPerm.users_group == ug).all()
 
         self.assertEqual(
@@ -109,7 +109,7 @@ class TestAdminUsersGroupsController(TestController):
 
         # check if user has this perms, they should be here since
         # defaults are on
-        perms = UserGroupToPerm.query()\
+        perms = UserGroupToPerm.query() \
             .filter(UserGroupToPerm.users_group == ug).all()
 
         self.assertEqual(
@@ -124,12 +124,12 @@ class TestAdminUsersGroupsController(TestController):
         response = self.app.post(url('users_group', id=ug.users_group_id),
             params={'_method': 'delete', '_authentication_token': self.authentication_token()})
         response = response.follow()
-        gr = Session().query(UserGroup)\
+        gr = Session().query(UserGroup) \
             .filter(UserGroup.users_group_name == users_group_name).scalar()
 
         self.assertEqual(gr, None)
         p = Permission.get_by_key('hg.create.repository')
-        perms = UserGroupToPerm.query()\
+        perms = UserGroupToPerm.query() \
             .filter(UserGroupToPerm.users_group_id == ugid).all()
         perms = [[x.users_group_id,
                   x.permission_id, ] for x in perms]
@@ -140,7 +140,7 @@ class TestAdminUsersGroupsController(TestController):
         users_group_name = TEST_USER_GROUP + 'another2'
         response = self.app.post(url('users_groups'),
                                  {'users_group_name': users_group_name,
-                                  'user_group_description': 'DESC',
+                                  'user_group_description': u'DESC',
                                   'active': True,
                                   '_authentication_token': self.authentication_token()})
         response.follow()
@@ -160,7 +160,7 @@ class TestAdminUsersGroupsController(TestController):
         p3 = Permission.get_by_key('hg.fork.repository')
         # check if user has this perms, they should be here since
         # defaults are on
-        perms = UserGroupToPerm.query()\
+        perms = UserGroupToPerm.query() \
             .filter(UserGroupToPerm.users_group == ug).all()
 
         self.assertEqual(
@@ -180,7 +180,7 @@ class TestAdminUsersGroupsController(TestController):
         p3 = Permission.get_by_key('hg.fork.none')
         # check if user has this perms, they should be here since
         # defaults are on
-        perms = UserGroupToPerm.query()\
+        perms = UserGroupToPerm.query() \
             .filter(UserGroupToPerm.users_group == ug).all()
 
         self.assertEqual(
@@ -195,13 +195,13 @@ class TestAdminUsersGroupsController(TestController):
         response = self.app.post(url('users_group', id=ug.users_group_id),
             params={'_method': 'delete', '_authentication_token': self.authentication_token()})
         response = response.follow()
-        gr = Session().query(UserGroup)\
+        gr = Session().query(UserGroup) \
                            .filter(UserGroup.users_group_name ==
                                    users_group_name).scalar()
 
         self.assertEqual(gr, None)
         p = Permission.get_by_key('hg.fork.repository')
-        perms = UserGroupToPerm.query()\
+        perms = UserGroupToPerm.query() \
             .filter(UserGroupToPerm.users_group_id == ugid).all()
         perms = [[x.users_group_id,
                   x.permission_id, ] for x in perms]

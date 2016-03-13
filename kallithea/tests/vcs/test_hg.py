@@ -1,5 +1,10 @@
 
 import os
+
+import pytest
+
+import tempfile
+from kallithea.lib.utils2 import safe_str
 from kallithea.lib.vcs.backends.hg import MercurialRepository, MercurialChangeset
 from kallithea.lib.vcs.exceptions import RepositoryError, VCSError, NodeDoesNotExistError
 from kallithea.lib.vcs.nodes import NodeKind, NodeState
@@ -19,15 +24,15 @@ class MercurialRepositoryTest(unittest.TestCase):
 
     def __check_for_existing_repo(self):
         if os.path.exists(TEST_HG_REPO_CLONE):
-            self.fail('Cannot test mercurial clone repo as location %s already '
+            pytest.fail('Cannot test mercurial clone repo as location %s already '
                       'exists. You should manually remove it first.'
                       % TEST_HG_REPO_CLONE)
 
     def setUp(self):
-        self.repo = MercurialRepository(TEST_HG_REPO)
+        self.repo = MercurialRepository(safe_str(TEST_HG_REPO))
 
     def test_wrong_repo_path(self):
-        wrong_repo_path = '/tmp/errorrepo'
+        wrong_repo_path = os.path.join(tempfile.gettempdir(), 'errorrepo')
         self.assertRaises(RepositoryError, MercurialRepository, wrong_repo_path)
 
     def test_unicode_path_repo(self):
@@ -35,7 +40,7 @@ class MercurialRepositoryTest(unittest.TestCase):
 
     def test_repo_clone(self):
         self.__check_for_existing_repo()
-        repo = MercurialRepository(TEST_HG_REPO)
+        repo = MercurialRepository(safe_str(TEST_HG_REPO))
         repo_clone = MercurialRepository(TEST_HG_REPO_CLONE,
             src_url=TEST_HG_REPO, update_after_clone=True)
         self.assertEqual(len(repo.revisions), len(repo_clone.revisions))
@@ -45,7 +50,7 @@ class MercurialRepositoryTest(unittest.TestCase):
             self.assertEqual(raw_id, repo_clone.get_changeset(raw_id).raw_id)
 
     def test_repo_clone_with_update(self):
-        repo = MercurialRepository(TEST_HG_REPO)
+        repo = MercurialRepository(safe_str(TEST_HG_REPO))
         repo_clone = MercurialRepository(TEST_HG_REPO_CLONE + '_w_update',
             src_url=TEST_HG_REPO, update_after_clone=True)
         self.assertEqual(len(repo.revisions), len(repo_clone.revisions))
@@ -56,7 +61,7 @@ class MercurialRepositoryTest(unittest.TestCase):
                                                     'MANIFEST.in')), True,)
 
     def test_repo_clone_without_update(self):
-        repo = MercurialRepository(TEST_HG_REPO)
+        repo = MercurialRepository(safe_str(TEST_HG_REPO))
         repo_clone = MercurialRepository(TEST_HG_REPO_CLONE + '_wo_update',
             src_url=TEST_HG_REPO, update_after_clone=False)
         self.assertEqual(len(repo.revisions), len(repo_clone.revisions))
@@ -66,7 +71,7 @@ class MercurialRepositoryTest(unittest.TestCase):
 
     def test_pull(self):
         if os.path.exists(TEST_HG_REPO_PULL):
-            self.fail('Cannot test mercurial pull command as location %s '
+            pytest.fail('Cannot test mercurial pull command as location %s '
                       'already exists. You should manually remove it first'
                       % TEST_HG_REPO_PULL)
         repo_new = MercurialRepository(TEST_HG_REPO_PULL, create=True)
@@ -242,7 +247,7 @@ TODO: To be written...
 class MercurialChangesetTest(unittest.TestCase):
 
     def setUp(self):
-        self.repo = MercurialRepository(TEST_HG_REPO)
+        self.repo = MercurialRepository(safe_str(TEST_HG_REPO))
 
     def _test_equality(self, changeset):
         revision = changeset.revision
@@ -302,8 +307,8 @@ class MercurialChangesetTest(unittest.TestCase):
         self.assertTrue(api is chset.get_node('docs/api'))
         index = api.get_node('index.rst')
         self.assertTrue(index is chset.get_node('docs/api/index.rst'))
-        self.assertTrue(index is chset.get_node('docs')\
-            .get_node('api')\
+        self.assertTrue(index is chset.get_node('docs') \
+            .get_node('api') \
             .get_node('index.rst'))
 
     def test_branch_and_tags(self):

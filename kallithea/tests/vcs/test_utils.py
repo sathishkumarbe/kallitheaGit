@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 import os
 import mock
@@ -204,6 +205,8 @@ class TestAuthorExtractors(unittest.TestCase):
                    ('justname', '')),
                   ('Mr Double Name withemail@example.com ',
                    ('Mr Double Name', 'withemail@example.com')),
+                  (u'John Doe <джондо à éẋàṁṗłê.ç°ḿ>',
+                   (u'John Doe <\u0434\u0436\u043e\u043d\u0434\u043e \xe0 \xe9\u1e8b\xe0\u1e41\u1e57\u0142\xea.\xe7\xb0\u1e3f>', '')),
                   ]
 
     def test_author_email(self):

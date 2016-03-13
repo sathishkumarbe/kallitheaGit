@@ -30,16 +30,14 @@ import traceback
 import formencode
 import re
 
-from webob.exc import HTTPNotFound, HTTPForbidden, HTTPBadRequest
-
 from pylons import request, tmpl_context as c, url
-from pylons.controllers.util import redirect
 from pylons.i18n.translation import _
+from webob.exc import HTTPFound, HTTPNotFound, HTTPForbidden, HTTPBadRequest
 
 from kallithea.lib.vcs.utils.hgcompat import unionrepo
 from kallithea.lib.compat import json
 from kallithea.lib.base import BaseRepoController, render
-from kallithea.lib.auth import LoginRequired, HasRepoPermissionAnyDecorator,\
+from kallithea.lib.auth import LoginRequired, HasRepoPermissionAnyDecorator, \
     NotAnonymous
 from kallithea.lib.helpers import Page
 from kallithea.lib import helpers as h
@@ -49,7 +47,7 @@ from kallithea.lib.utils import action_logger, jsonify
 from kallithea.lib.vcs.utils import safe_str
 from kallithea.lib.vcs.exceptions import EmptyRepositoryError
 from kallithea.lib.diffs import LimitedDiffContainer
-from kallithea.model.db import PullRequest, ChangesetStatus, ChangesetComment,\
+from kallithea.model.db import PullRequest, ChangesetStatus, ChangesetComment, \
     PullRequestReviewers, User
 from kallithea.model.pull_request import PullRequestModel
 from kallithea.model.meta import Session
@@ -58,7 +56,8 @@ from kallithea.model.comment import ChangesetCommentsModel
 from kallithea.model.changeset_status import ChangesetStatusModel
 from kallithea.model.forms import PullRequestForm, PullRequestPostForm
 from kallithea.lib.utils2 import safe_int
-from kallithea.controllers.changeset import _ignorews_url, _context_url
+from kallithea.controllers.changeset import _ignorews_url, _context_url, \
+    create_comment
 from kallithea.controllers.compare import CompareController
 from kallithea.lib.graphmod import graph_data
 
@@ -212,15 +211,15 @@ class PullrequestsController(BaseRepoController):
                 s = filter(lambda p: p.status != PullRequest.STATUS_CLOSED, s)
             return s
 
-        c.my_pull_requests = _filter(PullRequest.query()\
+        c.my_pull_requests = _filter(PullRequest.query() \
                                 .filter(PullRequest.user_id ==
-                                        self.authuser.user_id)\
+                                        self.authuser.user_id) \
                                 .all())
 
-        c.participate_in_pull_requests = _filter(PullRequest.query()\
-                                .join(PullRequestReviewers)\
+        c.participate_in_pull_requests = _filter(PullRequest.query() \
+                                .join(PullRequestReviewers) \
                                 .filter(PullRequestReviewers.user_id ==
-                                        self.authuser.user_id)\
+                                        self.authuser.user_id) \
                                                  )
 
         return render('/pullrequests/pullrequest_show_my.html')
@@ -237,7 +236,7 @@ class PullrequestsController(BaseRepoController):
         except EmptyRepositoryError as e:
             h.flash(h.literal(_('There are no changesets yet')),
                     category='warning')
-            redirect(url('summary_home', repo_name=org_repo.repo_name))
+            raise HTTPFound(location=url('summary_home', repo_name=org_repo.repo_name))
 
         org_rev = request.GET.get('rev_end')
         # rev_start is not directly useful - its parent could however be used
@@ -369,9 +368,9 @@ class PullrequestsController(BaseRepoController):
             h.flash(_('Error occurred while creating pull request'),
                     category='error')
             log.error(traceback.format_exc())
-            return redirect(url('pullrequest_home', repo_name=repo_name))
+            raise HTTPFound(location=url('pullrequest_home', repo_name=repo_name))
 
-        return redirect(pull_request.url())
+        raise HTTPFound(location=pull_request.url())
 
     def create_update(self, old_pull_request, updaterev, title, description, reviewers_ids):
         org_repo = RepoModel()._get_repo(old_pull_request.org_repo.repo_name)
@@ -456,7 +455,7 @@ class PullrequestsController(BaseRepoController):
             h.flash(_('Error occurred while creating pull request'),
                     category='error')
             log.error(traceback.format_exc())
-            return redirect(old_pull_request.url())
+            raise HTTPFound(location=old_pull_request.url())
 
         ChangesetCommentsModel().create(
             text=_('Closed, replaced by %s .') % pull_request.url(canonical=True),
@@ -470,7 +469,7 @@ class PullrequestsController(BaseRepoController):
         h.flash(_('Pull request update created'),
                 category='success')
 
-        return redirect(pull_request.url())
+        raise HTTPFound(location=pull_request.url())
 
     # pullrequest_post for PR editing
     @LoginRequired()
@@ -513,7 +512,7 @@ class PullrequestsController(BaseRepoController):
         Session().commit()
         h.flash(_('Pull request updated'), category='success')
 
-        return redirect(pull_request.url())
+        raise HTTPFound(location=pull_request.url())
 
     @LoginRequired()
     @NotAnonymous()
@@ -528,7 +527,7 @@ class PullrequestsController(BaseRepoController):
             Session().commit()
             h.flash(_('Successfully deleted pull request'),
                     category='success')
-            return redirect(url('my_pullrequests'))
+            raise HTTPFound(location=url('my_pullrequests'))
         raise HTTPForbidden()
 
     @LoginRequired()
@@ -610,9 +609,9 @@ class PullrequestsController(BaseRepoController):
                                                            other_scm_instance.path)
                     else:
                         hgrepo = org_scm_instance._repo
-                    show = set(hgrepo.revs('::%ld & !::%s & !::%s',
+                    show = set(hgrepo.revs('::%ld & !::parents(%s) & !::%s',
                                            avail_revs, revs[0], targethead))
-                    c.update_msg = _('This pull request can be updated with changes on %s:') % c.cs_branch_name
+                    c.update_msg = _('The following changes are available on %s:') % c.cs_branch_name
                 else:
                     show = set()
                     avail_revs = set() # drop revs[0]
@@ -711,10 +710,11 @@ class PullrequestsController(BaseRepoController):
 
         status = request.POST.get('changeset_status')
         close_pr = request.POST.get('save_close')
+        delete = request.POST.get('save_delete')
         f_path = request.POST.get('f_path')
         line_no = request.POST.get('line')
 
-        if (status or close_pr) and (f_path or line_no):
+        if (status or close_pr or delete) and (f_path or line_no):
             # status votes and closing is only possible in general comments
             raise HTTPBadRequest()
 
@@ -724,20 +724,33 @@ class PullrequestsController(BaseRepoController):
                 h.flash(_('No permission to change pull request status'), 'error')
                 raise HTTPForbidden()
 
+        if delete == "delete":
+            if (pull_request.owner.user_id == c.authuser.user_id or
+                h.HasPermissionAny('hg.admin')() or
+                h.HasRepoPermissionAny('repository.admin')(pull_request.org_repo.repo_name) or
+                h.HasRepoPermissionAny('repository.admin')(pull_request.other_repo.repo_name)
+                ) and not pull_request.is_closed():
+                PullRequestModel().delete(pull_request)
+                Session().commit()
+                h.flash(_('Successfully deleted pull request %s') % pull_request_id,
+                        category='success')
+                return {
+                   'location': url('my_pullrequests'), # or repo pr list?
+                }
+                raise HTTPFound(location=url('my_pullrequests')) # or repo pr list?
+            raise HTTPForbidden()
+
         text = request.POST.get('text', '').strip()
         if close_pr:
             text = _('Closing.') + '\n' + text
 
-        comment = ChangesetCommentsModel().create(
-            text=text,
-            repo=c.db_repo.repo_id,
-            user=c.authuser.user_id,
-            pull_request=pull_request_id,
+        comment = create_comment(
+            text,
+            status,
+            pull_request_id=pull_request_id,
             f_path=f_path,
             line_no=line_no,
-            status_change=(ChangesetStatus.get_status_lbl(status)
-                           if status and allowed_to_change_status else None),
-            closing_pr=close_pr
+            closing_pr=close_pr,
         )
 
         action_logger(self.authuser,
@@ -762,7 +775,7 @@ class PullrequestsController(BaseRepoController):
         Session().commit()
 
         if not request.environ.get('HTTP_X_PARTIAL_XHR'):
-            return redirect(pull_request.url())
+            raise HTTPFound(location=pull_request.url())
 
         data = {
            'target_id': h.safeid(h.safe_unicode(request.POST.get('f_path'))),

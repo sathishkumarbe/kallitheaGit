@@ -31,10 +31,9 @@ import re
 import formencode
 
 from formencode import htmlfill
-from webob.exc import HTTPFound, HTTPBadRequest
 from pylons.i18n.translation import _
-from pylons.controllers.util import redirect
 from pylons import request, session, tmpl_context as c, url
+from webob.exc import HTTPFound, HTTPBadRequest
 
 import kallithea.lib.helpers as h
 from kallithea.lib.auth import AuthUser, HasPermissionAnyDecorator
@@ -79,11 +78,10 @@ class LoginController(BaseController):
         else:
             c.came_from = url('home')
 
-        not_default = self.authuser.username != User.DEFAULT_USER
         ip_allowed = AuthUser.check_ip_allowed(self.authuser, self.ip_addr)
 
         # redirect if already logged in
-        if self.authuser.is_authenticated and not_default and ip_allowed:
+        if self.authuser.is_authenticated and ip_allowed:
             raise HTTPFound(location=c.came_from)
 
         if request.POST:
@@ -93,7 +91,7 @@ class LoginController(BaseController):
                 c.form_result = login_form.to_python(dict(request.POST))
                 # form checks for username/password, now we're authenticated
                 username = c.form_result['username']
-                user = User.get_by_username(username, case_insensitive=True)
+                user = User.get_by_username_or_email(username, case_insensitive=True)
             except formencode.Invalid as errors:
                 defaults = errors.value
                 # remove password from filling in form again
@@ -121,7 +119,7 @@ class LoginController(BaseController):
     @HasPermissionAnyDecorator('hg.admin', 'hg.register.auto_activate',
                                'hg.register.manual_activate')
     def register(self):
-        c.auto_active = 'hg.register.auto_activate' in User.get_default_user()\
+        c.auto_active = 'hg.register.auto_activate' in User.get_default_user() \
             .AuthUser.permissions['global']
 
         settings = Setting.get_app_settings()
@@ -152,7 +150,7 @@ class LoginController(BaseController):
                 h.flash(_('You have successfully registered into Kallithea'),
                         category='success')
                 Session().commit()
-                return redirect(url('login_home'))
+                raise HTTPFound(location=url('login_home'))
 
             except formencode.Invalid as errors:
                 return htmlfill.render(
@@ -196,7 +194,7 @@ class LoginController(BaseController):
                 redirect_link = UserModel().send_reset_password_email(form_result)
                 h.flash(_('A password reset confirmation code has been sent'),
                             category='success')
-                return redirect(redirect_link)
+                raise HTTPFound(location=redirect_link)
 
             except formencode.Invalid as errors:
                 return htmlfill.render(
@@ -249,12 +247,12 @@ class LoginController(BaseController):
 
         UserModel().reset_password(form_result['email'], form_result['password'])
         h.flash(_('Successfully updated password'), category='success')
-        return redirect(url('login_home'))
+        raise HTTPFound(location=url('login_home'))
 
     def logout(self):
         session.delete()
         log.info('Logging out and deleting session for user')
-        redirect(url('home'))
+        raise HTTPFound(location=url('home'))
 
     def authentication_token(self):
         """Return the CSRF protection token for the session - just like it

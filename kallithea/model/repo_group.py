@@ -59,7 +59,7 @@ class RepoGroupModel(BaseModel):
         Gets the repositories root path from database
         """
 
-        q = Ui.get_by_key('/')
+        q = Ui.get_by_key('paths', '/')
         return q.ui_value
 
     def _create_default_perms(self, new_group):
@@ -455,9 +455,9 @@ class RepoGroupModel(BaseModel):
         permission = self._get_perm(perm)
 
         # check if we have that permission already
-        obj = self.sa.query(UserRepoGroupToPerm)\
-            .filter(UserRepoGroupToPerm.user == user)\
-            .filter(UserRepoGroupToPerm.group == repo_group)\
+        obj = self.sa.query(UserRepoGroupToPerm) \
+            .filter(UserRepoGroupToPerm.user == user) \
+            .filter(UserRepoGroupToPerm.group == repo_group) \
             .scalar()
         if obj is None:
             # create new !
@@ -481,9 +481,9 @@ class RepoGroupModel(BaseModel):
         repo_group = self._get_repo_group(repo_group)
         user = self._get_user(user)
 
-        obj = self.sa.query(UserRepoGroupToPerm)\
-            .filter(UserRepoGroupToPerm.user == user)\
-            .filter(UserRepoGroupToPerm.group == repo_group)\
+        obj = self.sa.query(UserRepoGroupToPerm) \
+            .filter(UserRepoGroupToPerm.user == user) \
+            .filter(UserRepoGroupToPerm.group == repo_group) \
             .scalar()
         if obj is not None:
             self.sa.delete(obj)
@@ -505,9 +505,9 @@ class RepoGroupModel(BaseModel):
         permission = self._get_perm(perm)
 
         # check if we have that permission already
-        obj = self.sa.query(UserGroupRepoGroupToPerm)\
-            .filter(UserGroupRepoGroupToPerm.group == repo_group)\
-            .filter(UserGroupRepoGroupToPerm.users_group == group_name)\
+        obj = self.sa.query(UserGroupRepoGroupToPerm) \
+            .filter(UserGroupRepoGroupToPerm.group == repo_group) \
+            .filter(UserGroupRepoGroupToPerm.users_group == group_name) \
             .scalar()
 
         if obj is None:
@@ -533,9 +533,9 @@ class RepoGroupModel(BaseModel):
         repo_group = self._get_repo_group(repo_group)
         group_name = self._get_user_group(group_name)
 
-        obj = self.sa.query(UserGroupRepoGroupToPerm)\
-            .filter(UserGroupRepoGroupToPerm.group == repo_group)\
-            .filter(UserGroupRepoGroupToPerm.users_group == group_name)\
+        obj = self.sa.query(UserGroupRepoGroupToPerm) \
+            .filter(UserGroupRepoGroupToPerm.group == repo_group) \
+            .filter(UserGroupRepoGroupToPerm.users_group == group_name) \
             .scalar()
         if obj is not None:
             self.sa.delete(obj)

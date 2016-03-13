@@ -23,6 +23,7 @@ import platform
 import pylons
 import mako.lookup
 import beaker
+import formencode
 
 # don't remove this import it does magic for celery
 from kallithea.lib import celerypylons
@@ -33,8 +34,8 @@ from kallithea.config.routing import make_map
 
 from kallithea.lib import helpers
 from kallithea.lib.auth import set_available_permissions
-from kallithea.lib.utils import repo2db_mapper, make_ui, set_app_settings,\
-    load_rcextensions, check_git_version, set_vcs_config
+from kallithea.lib.utils import repo2db_mapper, make_ui, set_app_settings, \
+    load_rcextensions, check_git_version, set_vcs_config, set_indexer_config
 from kallithea.lib.utils2 import engine_from_config, str2bool
 from kallithea.lib.db_manage import DbManage
 from kallithea.model import init_model
@@ -118,7 +119,7 @@ def load_environment(global_conf, app_conf, initial=False,
     config['base_path'] = repos_path
     set_app_settings(config)
 
-    instance_id = kallithea.CONFIG.get('instance_id')
+    instance_id = kallithea.CONFIG.get('instance_id', '*')
     if instance_id == '*':
         instance_id = '%s-%s' % (platform.uname()[1], os.getpid())
         kallithea.CONFIG['instance_id'] = instance_id
@@ -130,6 +131,7 @@ def load_environment(global_conf, app_conf, initial=False,
     # pylons
     kallithea.CONFIG.update(config)
     set_vcs_config(kallithea.CONFIG)
+    set_indexer_config(kallithea.CONFIG)
 
     #check git version
     check_git_version()
@@ -137,4 +139,5 @@ def load_environment(global_conf, app_conf, initial=False,
     if str2bool(config.get('initial_repo_scan', True)):
         repo2db_mapper(ScmModel().repo_scan(repos_path),
                        remove_obsolete=False, install_git_hooks=False)
+    formencode.api.set_stdtranslation(languages=[config.get('lang')])
     return config

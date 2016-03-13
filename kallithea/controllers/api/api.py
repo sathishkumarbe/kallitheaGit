@@ -25,7 +25,6 @@ Original author and date, and relevant copyright and licensing information is be
 :license: GPLv3, see LICENSE.md for more details.
 """
 
-
 import time
 import traceback
 import logging
@@ -675,7 +674,7 @@ class ApiController(JSONRPCController):
         if User.get_by_username(username):
             raise JSONRPCError("user `%s` already exist" % (username,))
 
-        if User.get_by_email(email, case_insensitive=True):
+        if User.get_by_email(email):
             raise JSONRPCError("email `%s` already exist" % (email,))
 
         if Optional.extract(extern_name):
@@ -705,10 +704,10 @@ class ApiController(JSONRPCController):
 
     @HasPermissionAllDecorator('hg.admin')
     def update_user(self, apiuser, userid, username=Optional(None),
-                    email=Optional(None),password=Optional(None),
+                    email=Optional(None), password=Optional(None),
                     firstname=Optional(None), lastname=Optional(None),
                     active=Optional(None), admin=Optional(None),
-                    extern_type=Optional(None), extern_name=Optional(None),):
+                    extern_type=Optional(None), extern_name=Optional(None)):
         """
         updates given user if such user exists. This command can
         be executed only using api_key belonging to user with admin rights.
@@ -1074,7 +1073,7 @@ class ApiController(JSONRPCController):
             raise JSONRPCError('failed to delete user group ID:%s %s' %
                                (user_group.users_group_id,
                                 user_group.users_group_name)
-            )
+                               )
 
     # permission check inside
     def add_user_to_user_group(self, apiuser, usergroupid, userid):
@@ -1455,7 +1454,7 @@ class ApiController(JSONRPCController):
         """
         if not HasPermissionAnyApi('hg.admin')(user=apiuser):
             if not isinstance(owner, Optional):
-                #forbid setting owner for non-admins
+                # forbid setting owner for non-admins
                 raise JSONRPCError(
                     'Only Kallithea admin can specify `owner` param'
                 )
@@ -1562,7 +1561,7 @@ class ApiController(JSONRPCController):
                 raise JSONRPCError('no permission to create (or move) repositories')
 
             if not isinstance(owner, Optional):
-                #forbid setting owner for non-admins
+                # forbid setting owner for non-admins
                 raise JSONRPCError(
                     'Only Kallithea admin can specify `owner` param'
                 )
@@ -1660,7 +1659,7 @@ class ApiController(JSONRPCController):
                                      'repository.read')(user=apiuser,
                                                         repo_name=repo.repo_name):
             if not isinstance(owner, Optional):
-                #forbid setting owner for non-admins
+                # forbid setting owner for non-admins
                 raise JSONRPCError(
                     'Only Kallithea admin can specify `owner` param'
                 )
@@ -1741,7 +1740,7 @@ class ApiController(JSONRPCController):
         if not HasPermissionAnyApi('hg.admin')(user=apiuser):
             # check if we have admin permission for this repo !
             if not HasRepoPermissionAnyApi('repository.admin')(user=apiuser,
-                                                           repo_name=repo.repo_name):
+                                                               repo_name=repo.repo_name):
                 raise JSONRPCError('repository `%s` does not exist' % (repoid,))
 
         try:
@@ -2175,7 +2174,7 @@ class ApiController(JSONRPCController):
             log.error(traceback.format_exc())
             raise JSONRPCError('failed to delete repo group ID:%s %s' %
                                (repo_group.group_id, repo_group.group_name)
-            )
+                               )
 
     # permission check inside
     def grant_user_permission_to_repo_group(self, apiuser, repogroupid, userid,
@@ -2315,7 +2314,7 @@ class ApiController(JSONRPCController):
     # permission check inside
     def grant_user_group_permission_to_repo_group(
             self, apiuser, repogroupid, usergroupid, perm,
-            apply_to_children=Optional('none'),):
+            apply_to_children=Optional('none')):
         """
         Grant permission for user group on given repository group, or update
         existing one if found. This command can be executed only using
@@ -2381,9 +2380,9 @@ class ApiController(JSONRPCController):
             Session().commit()
             return dict(
                 msg='Granted perm: `%s` (recursive:%s) for user group: `%s` in repo group: `%s`' % (
-                        perm.permission_name, apply_to_children,
-                        user_group.users_group_name, repo_group.name
-                    ),
+                    perm.permission_name, apply_to_children,
+                    user_group.users_group_name, repo_group.name
+                ),
                 success=True
             )
         except Exception:
@@ -2509,9 +2508,9 @@ class ApiController(JSONRPCController):
             user_id = get_user_or_error(userid).user_id
 
         gists = []
-        _gists = Gist().query()\
-            .filter(or_(Gist.gist_expires == -1, Gist.gist_expires >= time.time()))\
-            .filter(Gist.gist_owner == user_id)\
+        _gists = Gist().query() \
+            .filter(or_(Gist.gist_expires == -1, Gist.gist_expires >= time.time())) \
+            .filter(Gist.gist_owner == user_id) \
             .order_by(Gist.created_on.desc())
         for gist in _gists:
             gists.append(gist.get_api_data())

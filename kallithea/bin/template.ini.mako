@@ -278,12 +278,6 @@ issue_prefix = #
 #issue_server_link_wiki = https://wiki.example.com/{id}
 #issue_prefix_wiki = WIKI-
 
-<%text>## instance-id prefix</%text>
-<%text>## a prefix key for this instance used for cache invalidation when running</%text>
-<%text>## multiple instances of kallithea, make sure it's globally unique for</%text>
-<%text>## all running kallithea instances. Leave empty if you don't use it</%text>
-instance_id =
-
 <%text>## alternative return HTTP header for failed authentication. Default HTTP</%text>
 <%text>## response is 401 HTTPUnauthorized. Currently Mercurial clients have trouble with</%text>
 <%text>## handling that. Set this variable to 403 to return HTTPForbidden</%text>
@@ -298,6 +292,18 @@ allow_repo_location_change = True
 
 <%text>## allows to setup custom hooks in settings page</%text>
 allow_custom_hooks_settings = True
+
+<%text>## extra extensions for indexing, space separated and without the leading '.'.</%text>
+# index.extensions =
+#    gemfile
+#    lock
+
+<%text>## extra filenames for indexing, space separated</%text>
+# index.filenames =
+#    .dockerignore
+#    .editorconfig
+#    INSTALL
+#    CHANGELOG
 
 <%text>####################################</%text>
 <%text>###        CELERY CONFIG        ####</%text>
@@ -489,14 +495,13 @@ sqlalchemy.db1.url = postgresql://user:pass@localhost/kallithea
 
 %elif database_engine == 'mysql':
 # MySQL
-sqlalchemy.db1.url = mysql://user:pass@localhost/kallithea
+sqlalchemy.db1.url = mysql://user:pass@localhost/kallithea?charset=utf8
 
 %endif
 # see sqlalchemy docs for others
 
 sqlalchemy.db1.echo = false
 sqlalchemy.db1.pool_recycle = 3600
-sqlalchemy.db1.convert_unicode = true
 
 <%text>################################</%text>
 <%text>### LOGGING CONFIGURATION   ####</%text>

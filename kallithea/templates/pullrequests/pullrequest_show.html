@@ -43,7 +43,7 @@ ${self.repo_context_bar('showpullrequest')}
             %endif
           </div>
           <div class="input">
-            <div style="white-space:pre-wrap; line-height: 14px">${h.urlify_commit(c.pull_request.description, c.pull_request.org_repo.repo_name)}</div>
+            <code style="white-space:pre-wrap; line-height: 14px">${h.urlify_commit(c.pull_request.description, c.pull_request.org_repo.repo_name)}</code>
           </div>
         </div>
 
@@ -185,23 +185,34 @@ ${self.repo_context_bar('showpullrequest')}
                       %if cs.revision == c.cs_ranges[-1].revision:
                         <td>
                           %if editable:
-                            ${h.radio(name='updaterev', value='')}
+                            ${h.radio(name='updaterev', value='', checked=True)}
                           %endif
                         </td>
-                        <td colspan="2">${_("Current revision - no change")}</td>
+                        <td colspan="4">${_("Current revision - no change")}</td>
                       %else:
                         <td>
                           %if editable and cs.revision in c.avail_revs:
                             ${h.radio(name='updaterev', value=cs.raw_id)}
                           %endif
                         </td>
+                        <td style="width: 120px"><span class="tooltip" title="${h.age(cs.date)}">${cs.date}</span></td>
                         <td>${h.link_to(h.show_id(cs),h.url('changeset_home',repo_name=c.cs_repo.repo_name,revision=cs.raw_id))}</td>
-                        <td><div class="message" style="white-space:normal; height:1.1em; max-width: 500px; padding:0">${h.urlify_commit(cs.message, c.repo_name)}</div></td>
+                        <td>
+                          <div style="float: right; margin-top: -4px;">
+                            %for tag in cs.tags:
+                              <div class="tagtag" title="${_('Tag %s') % tag}">
+                                ${h.link_to(tag,h.url('changeset_home',repo_name=c.repo_name,revision=cs.raw_id))}
+                              </div>
+                            %endfor
+                          </div>
+                          <div class="message" style="white-space:normal; height:1.1em; max-width: 500px; padding:0">${h.urlify_commit(cs.message, c.repo_name)}</div>
+                        </td>
                       %endif
                     </tr>
                   %endfor
                 </table>
               </div>
+              <div class="msg-div">${_("Pull requests do not change once created. Select a revision and save to replace this pull request with a new one.")}</div>
               %endif
               <div class="msg-div">${c.update_msg_other}</div>
             </div>
@@ -282,7 +293,7 @@ ${self.repo_context_bar('showpullrequest')}
         %if editable:
           <div class="buttons">
             ${h.submit('pr-form-save',_('Save Changes'),class_="btn btn-small")}
-            ${h.submit('pr-form-clone',_('Save as New Pull Request'),class_="btn btn-small",disabled='disabled')}
+            ${h.submit('pr-form-clone',_('Save Updates as New Pull Request'),class_="btn btn-small",disabled='disabled')}
             ${h.reset('pr-form-reset',_('Cancel Changes'),class_="btn btn-small")}
           </div>
         %endif
@@ -356,9 +367,7 @@ ${self.repo_context_bar('showpullrequest')}
     <div class="commentable-diff">
     <%namespace name="diff_block" file="/changeset/diff_block.html"/>
     ${diff_block.diff_block_js()}
-    %for fid, change, f, stat in c.files:
-      ${diff_block.diff_block_simple([c.changes[fid]])}
-    %endfor
+    ${diff_block.diff_block_simple(c.files, c.changes)}
     % if c.limited_diff:
       <h4>${_('Changeset was too big and was cut off...')} <a href="${h.url.current(fulldiff=1, **request.GET.mixed())}">${_('Show full diff anyway')}</a></h4>
     % endif
@@ -371,10 +380,7 @@ ${self.repo_context_bar('showpullrequest')}
     ${comment.generate_comments()}
 
     ## main comment form and it status
-    ${comment.comments(h.url('pullrequest_comment', repo_name=c.repo_name,
-                              pull_request_id=c.pull_request.pull_request_id),
-                       c.current_voting_result,
-                       is_pr=True, change_status=c.allowed_to_change_status)}
+    ${comment.comments(change_status=c.allowed_to_change_status)}
 
     <script type="text/javascript">
       $(document).ready(function(){

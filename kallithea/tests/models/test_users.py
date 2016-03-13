@@ -1,6 +1,6 @@
 from kallithea.tests import *
 
-from kallithea.model.db import User, UserGroup, UserGroupMember, UserEmailMap,\
+from kallithea.model.db import User, UserGroup, UserGroupMember, UserEmailMap, \
     Permission
 from kallithea.model.user import UserModel
 
@@ -26,9 +26,11 @@ class TestUser(BaseTestCase):
                                            firstname=u'u1', lastname=u'u1')
         Session().commit()
         self.assertEqual(User.get_by_username(u'test_user'), usr)
+        self.assertEqual(User.get_by_username(u'test_USER', case_insensitive=True), usr)
+        self.assertEqual(User.get_by_username(u'test_USER', case_insensitive=False), None)
 
         # make user group
-        user_group = fixture.create_user_group('some_example_group')
+        user_group = fixture.create_user_group(u'some_example_group')
         Session().commit()
 
         UserGroupModel().add_user_to_group(user_group, usr)
@@ -72,6 +74,10 @@ class TestUser(BaseTestCase):
         Session().add(m)
         Session().commit()
 
+        u = User.get_by_email(email='MAIN_email@example.com')
+        self.assertEqual(usr.user_id, u.user_id)
+        self.assertEqual(usr.username, u.username)
+
         u = User.get_by_email(email='main_email@example.com')
         self.assertEqual(usr.user_id, u.user_id)
         self.assertEqual(usr.username, u.username)
@@ -81,6 +87,12 @@ class TestUser(BaseTestCase):
         self.assertEqual(usr.username, u.username)
         u = User.get_by_email(email='main_email3@example.com')
         self.assertEqual(None, u)
+
+        u = User.get_by_email(email='main_e%ail@example.com')
+        self.assertEqual(None, u)
+        u = User.get_by_email(email='main_emai_@example.com')
+        self.assertEqual(None, u)
+
 
         UserModel().delete(usr.user_id)
         Session().commit()

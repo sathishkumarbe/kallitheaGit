@@ -158,13 +158,16 @@ class BaseModel(object):
         return '<DB:%s>' % (self.__class__.__name__)
 
 
+_table_args_default_dict = {'extend_existing': True,
+                            'mysql_engine': 'InnoDB',
+                            'mysql_charset': 'utf8',
+                            'sqlite_autoincrement': True,
+                           }
+
 class Setting(Base, BaseModel):
     __tablename__ = DB_PREFIX + 'settings'
-
     __table_args__ = (
-        UniqueConstraint('app_settings_name'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        _table_args_default_dict,
     )
 
     SETTINGS_TYPES = {
@@ -176,10 +179,10 @@ class Setting(Base, BaseModel):
     }
     DEFAULT_UPDATE_URL = ''
 
-    app_settings_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    app_settings_name = Column(String(255, convert_unicode=False), nullable=True, unique=None, default=None)
-    _app_settings_value = Column("app_settings_value", String(4096, convert_unicode=False), nullable=True, unique=None, default=None)
-    _app_settings_type = Column("app_settings_type", String(255, convert_unicode=False), nullable=True, unique=None, default=None)
+    app_settings_id = Column(Integer(), unique=True, primary_key=True)
+    app_settings_name = Column(String(255), nullable=False, unique=True)
+    _app_settings_value = Column("app_settings_value", Unicode(4096), nullable=False)
+    _app_settings_type = Column("app_settings_type", String(255), nullable=True) # FIXME: not nullable?
 
     def __init__(self, key='', val='', type='unicode'):
         self.app_settings_name = key
@@ -226,7 +229,7 @@ class Setting(Base, BaseModel):
 
     @classmethod
     def get_by_name(cls, key):
-        return cls.query()\
+        return cls.query() \
             .filter(cls.app_settings_name == key).scalar()
 
     @classmethod
@@ -286,7 +289,7 @@ class Setting(Base, BaseModel):
 
     @classmethod
     def get_auth_settings(cls, cache=False):
-        ret = cls.query()\
+        ret = cls.query() \
                 .filter(cls.app_settings_name.startswith('auth_')).all()
         fd = {}
         for row in ret:
@@ -295,7 +298,7 @@ class Setting(Base, BaseModel):
 
     @classmethod
     def get_default_repo_settings(cls, cache=False, strip_prefix=False):
-        ret = cls.query()\
+        ret = cls.query() \
                 .filter(cls.app_settings_name.startswith('default_')).all()
         fd = {}
         for row in ret:
@@ -327,9 +330,11 @@ class Setting(Base, BaseModel):
 class Ui(Base, BaseModel):
     __tablename__ = DB_PREFIX + 'ui'
     __table_args__ = (
+        # FIXME: ui_key as key is wrong and should be removed when the corresponding
+        # Ui.get_by_key has been replaced by the composite key
         UniqueConstraint('ui_key'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        UniqueConstraint('ui_section', 'ui_key'),
+        _table_args_default_dict,
     )
 
     HOOK_UPDATE = 'changegroup.update'
@@ -339,20 +344,25 @@ class Ui(Base, BaseModel):
     HOOK_PULL = 'outgoing.pull_logger'
     HOOK_PRE_PULL = 'preoutgoing.pre_pull'
 
-    ui_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    ui_section = Column(String(255, convert_unicode=False), nullable=True, unique=None, default=None)
-    ui_key = Column(String(255, convert_unicode=False), nullable=True, unique=None, default=None)
-    ui_value = Column(String(255, convert_unicode=False), nullable=True, unique=None, default=None)
-    ui_active = Column(Boolean(), nullable=True, unique=None, default=True)
-
-    # def __init__(self, section='', key='', value=''):
-    #     self.ui_section = section
-    #     self.ui_key = key
-    #     self.ui_value = value
+    ui_id = Column(Integer(), unique=True, primary_key=True)
+    ui_section = Column(String(255), nullable=False)
+    ui_key = Column(String(255), nullable=False)
+    ui_value = Column(String(255), nullable=True) # FIXME: not nullable?
+    ui_active = Column(Boolean(), nullable=False, default=True)
 
     @classmethod
-    def get_by_key(cls, key):
-        return cls.query().filter(cls.ui_key == key).scalar()
+    def get_by_key(cls, section, key):
+        """ Return specified Ui object, or None if not found. """
+        return cls.query().filter_by(ui_section=section, ui_key=key).scalar()
+
+    @classmethod
+    def get_or_create(cls, section, key):
+        """ Return specified Ui object, creating it if necessary. """
+        setting = cls.get_by_key(section, key)
+        if setting is None:
+            setting = cls(ui_section=section, ui_key=key)
+            Session().add(setting)
+        return setting
 
     @classmethod
     def get_builtin_hooks(cls):
@@ -360,6 +370,7 @@ class Ui(Base, BaseModel):
         q = q.filter(cls.ui_key.in_([cls.HOOK_UPDATE, cls.HOOK_REPO_SIZE,
                                      cls.HOOK_PUSH, cls.HOOK_PRE_PUSH,
                                      cls.HOOK_PULL, cls.HOOK_PRE_PULL]))
+        q = q.filter(cls.ui_section == 'hooks')
         return q.all()
 
     @classmethod
@@ -373,17 +384,13 @@ class Ui(Base, BaseModel):
 
     @classmethod
     def get_repos_location(cls):
-        return cls.get_by_key('/').ui_value
+        return cls.get_by_key('paths', '/').ui_value
 
     @classmethod
     def create_or_update_hook(cls, key, val):
-        new_ui = cls.get_by_key(key) or cls()
-        new_ui.ui_section = 'hooks'
+        new_ui = cls.get_or_create('hooks', key)
         new_ui.ui_active = True
-        new_ui.ui_key = key
         new_ui.ui_value = val
-
-        Session().add(new_ui)
 
     def __repr__(self):
         return '<%s[%s]%s=>%s]>' % (self.__class__.__name__, self.ui_section,
@@ -393,30 +400,29 @@ class Ui(Base, BaseModel):
 class User(Base, BaseModel):
     __tablename__ = 'users'
     __table_args__ = (
-        UniqueConstraint('username'), UniqueConstraint('email'),
         Index('u_username_idx', 'username'),
         Index('u_email_idx', 'email'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        _table_args_default_dict,
     )
+
     DEFAULT_USER = 'default'
     DEFAULT_GRAVATAR_URL = 'https://secure.gravatar.com/avatar/{md5email}?d=identicon&s={size}'
 
-    user_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    username = Column(String(255, convert_unicode=False), nullable=True, unique=None, default=None)
-    password = Column(String(255, convert_unicode=False), nullable=True, unique=None, default=None)
-    active = Column(Boolean(), nullable=True, unique=None, default=True)
-    admin = Column(Boolean(), nullable=True, unique=None, default=False)
-    name = Column("firstname", String(255, convert_unicode=False), nullable=True, unique=None, default=None)
-    lastname = Column(String(255, convert_unicode=False), nullable=True, unique=None, default=None)
-    _email = Column("email", String(255, convert_unicode=False), nullable=True, unique=None, default=None)
-    last_login = Column(DateTime(timezone=False), nullable=True, unique=None, default=None)
-    extern_type = Column(String(255, convert_unicode=False), nullable=True, unique=None, default=None)
-    extern_name = Column(String(255, convert_unicode=False), nullable=True, unique=None, default=None)
-    api_key = Column(String(255, convert_unicode=False), nullable=True, unique=None, default=None)
-    inherit_default_permissions = Column(Boolean(), nullable=False, unique=None, default=True)
+    user_id = Column(Integer(), unique=True, primary_key=True)
+    username = Column(String(255), nullable=False, unique=True)
+    password = Column(String(255), nullable=False)
+    active = Column(Boolean(), nullable=False, default=True)
+    admin = Column(Boolean(), nullable=False, default=False)
+    name = Column("firstname", Unicode(255), nullable=False)
+    lastname = Column(Unicode(255), nullable=False)
+    _email = Column("email", String(255), nullable=True, unique=True) # FIXME: not nullable?
+    last_login = Column(DateTime(timezone=False), nullable=True)
+    extern_type = Column(String(255), nullable=True) # FIXME: not nullable?
+    extern_name = Column(String(255), nullable=True) # FIXME: not nullable?
+    api_key = Column(String(255), nullable=False)
+    inherit_default_permissions = Column(Boolean(), nullable=False, default=True)
     created_on = Column(DateTime(timezone=False), nullable=False, default=datetime.datetime.now)
-    _user_data = Column("user_data", LargeBinary(), nullable=True)  # JSON data
+    _user_data = Column("user_data", LargeBinary(), nullable=True)  # JSON data # FIXME: not nullable?
 
     user_log = relationship('UserLog')
     user_perms = relationship('UserToPerm', primaryjoin="User.user_id==UserToPerm.user_id", cascade='all')
@@ -547,9 +553,23 @@ class User(Base, BaseModel):
         return user
 
     @classmethod
+    def get_by_username_or_email(cls, username_or_email, case_insensitive=False, cache=False):
+        """
+        For anything that looks like an email address, look up by the email address (matching
+        case insensitively).
+        For anything else, try to look up by the user name.
+
+        This assumes no normal username can have '@' symbol.
+        """
+        if '@' in username_or_email:
+            return User.get_by_email(username_or_email, cache=cache)
+        else:
+            return User.get_by_username(username_or_email, case_insensitive=case_insensitive, cache=cache)
+
+    @classmethod
     def get_by_username(cls, username, case_insensitive=False, cache=False):
         if case_insensitive:
-            q = cls.query().filter(cls.username.ilike(username))
+            q = cls.query().filter(func.lower(cls.username) == func.lower(username))
         else:
             q = cls.query().filter(cls.username == username)
 
@@ -575,21 +595,18 @@ class User(Base, BaseModel):
 
         if fallback and not res:
             #fallback to additional keys
-            _res = UserApiKeys.query()\
-                .filter(UserApiKeys.api_key == api_key)\
+            _res = UserApiKeys.query() \
+                .filter(UserApiKeys.api_key == api_key) \
                 .filter(or_(UserApiKeys.expires == -1,
-                            UserApiKeys.expires >= time.time()))\
+                            UserApiKeys.expires >= time.time())) \
                 .first()
             if _res:
                 res = _res.user
         return res
 
     @classmethod
-    def get_by_email(cls, email, case_insensitive=False, cache=False):
-        if case_insensitive:
-            q = cls.query().filter(cls.email.ilike(email))
-        else:
-            q = cls.query().filter(cls.email == email)
+    def get_by_email(cls, email, cache=False):
+        q = cls.query().filter(func.lower(cls.email) == func.lower(email))
 
         if cache:
             q = q.options(FromCache("sql_cache_short",
@@ -599,10 +616,7 @@ class User(Base, BaseModel):
         if ret is None:
             q = UserEmailMap.query()
             # try fetching in alternate email map
-            if case_insensitive:
-                q = q.filter(UserEmailMap.email.ilike(email))
-            else:
-                q = q.filter(UserEmailMap.email == email)
+            q = q.filter(func.lower(UserEmailMap.email) == func.lower(email))
             q = q.options(joinedload(UserEmailMap.user))
             if cache:
                 q = q.options(FromCache("sql_cache_short",
@@ -622,7 +636,7 @@ class User(Base, BaseModel):
         # Valid email in the attribute passed, see if they're in the system
         _email = email(author)
         if _email:
-            user = cls.get_by_email(_email, case_insensitive=True)
+            user = cls.get_by_email(_email)
             if user is not None:
                 return user
         # Maybe we can match by username?
@@ -693,16 +707,14 @@ class UserApiKeys(Base, BaseModel):
     __table_args__ = (
         Index('uak_api_key_idx', 'api_key'),
         Index('uak_api_key_expires_idx', 'api_key', 'expires'),
-        UniqueConstraint('api_key'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        _table_args_default_dict,
     )
     __mapper_args__ = {}
 
-    user_api_key_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=True, unique=None, default=None)
-    api_key = Column(String(255, convert_unicode=False), nullable=False, unique=True)
-    description = Column(UnicodeText(1024))
+    user_api_key_id = Column(Integer(), unique=True, primary_key=True)
+    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False)
+    api_key = Column(String(255), nullable=False, unique=True)
+    description = Column(UnicodeText(1024), nullable=False)
     expires = Column(Float(53), nullable=False)
     created_on = Column(DateTime(timezone=False), nullable=False, default=datetime.datetime.now)
 
@@ -719,15 +731,13 @@ class UserEmailMap(Base, BaseModel):
     __tablename__ = 'user_email_map'
     __table_args__ = (
         Index('uem_email_idx', 'email'),
-        UniqueConstraint('email'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        _table_args_default_dict,
     )
     __mapper_args__ = {}
 
-    email_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=True, unique=None, default=None)
-    _email = Column("email", String(255, convert_unicode=False), nullable=True, unique=False, default=None)
+    email_id = Column(Integer(), unique=True, primary_key=True)
+    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False)
+    _email = Column("email", String(255), nullable=False, unique=True)
     user = relationship('User')
 
     @validates('_email')
@@ -751,15 +761,14 @@ class UserIpMap(Base, BaseModel):
     __tablename__ = 'user_ip_map'
     __table_args__ = (
         UniqueConstraint('user_id', 'ip_addr'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        _table_args_default_dict,
     )
     __mapper_args__ = {}
 
-    ip_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=True, unique=None, default=None)
-    ip_addr = Column(String(255, convert_unicode=False), nullable=True, unique=False, default=None)
-    active = Column(Boolean(), nullable=True, unique=None, default=True)
+    ip_id = Column(Integer(), unique=True, primary_key=True)
+    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False)
+    ip_addr = Column(String(255), nullable=False)
+    active = Column(Boolean(), nullable=False, default=True)
     user = relationship('User')
 
     @classmethod
@@ -781,17 +790,17 @@ class UserIpMap(Base, BaseModel):
 class UserLog(Base, BaseModel):
     __tablename__ = 'user_logs'
     __table_args__ = (
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True},
+        _table_args_default_dict,
     )
-    user_log_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=True, unique=None, default=None)
-    username = Column(String(255, convert_unicode=False), nullable=True, unique=None, default=None)
+
+    user_log_id = Column(Integer(), unique=True, primary_key=True)
+    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=True)
+    username = Column(String(255), nullable=False)
     repository_id = Column(Integer(), ForeignKey('repositories.repo_id'), nullable=True)
-    repository_name = Column(String(255, convert_unicode=False), nullable=True, unique=None, default=None)
-    user_ip = Column(String(255, convert_unicode=False), nullable=True, unique=None, default=None)
-    action = Column(UnicodeText(1200000, convert_unicode=False), nullable=True, unique=None, default=None)
-    action_date = Column(DateTime(timezone=False), nullable=True, unique=None, default=None)
+    repository_name = Column(Unicode(255), nullable=False)
+    user_ip = Column(String(255), nullable=True)
+    action = Column(UnicodeText(1200000), nullable=False)
+    action_date = Column(DateTime(timezone=False), nullable=False)
 
     def __unicode__(self):
         return u"<%s('id:%s:%s')>" % (self.__class__.__name__,
@@ -809,18 +818,17 @@ class UserLog(Base, BaseModel):
 class UserGroup(Base, BaseModel):
     __tablename__ = 'users_groups'
     __table_args__ = (
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True},
+        _table_args_default_dict,
     )
 
-    users_group_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    users_group_name = Column(String(255, convert_unicode=False), nullable=False, unique=True, default=None)
-    user_group_description = Column(String(10000, convert_unicode=False), nullable=True, unique=None, default=None)
-    users_group_active = Column(Boolean(), nullable=True, unique=None, default=None)
-    inherit_default_permissions = Column("users_group_inherit_default_permissions", Boolean(), nullable=False, unique=None, default=True)
-    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False, unique=False, default=None)
+    users_group_id = Column(Integer(), unique=True, primary_key=True)
+    users_group_name = Column(Unicode(255), nullable=False, unique=True)
+    user_group_description = Column(Unicode(10000), nullable=True) # FIXME: not nullable?
+    users_group_active = Column(Boolean(), nullable=False)
+    inherit_default_permissions = Column("users_group_inherit_default_permissions", Boolean(), nullable=False, default=True)
+    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False)
     created_on = Column(DateTime(timezone=False), nullable=False, default=datetime.datetime.now)
-    _group_data = Column("group_data", LargeBinary(), nullable=True)  # JSON data
+    _group_data = Column("group_data", LargeBinary(), nullable=True)  # JSON data # FIXME: not nullable?
 
     members = relationship('UserGroupMember', cascade="all, delete-orphan")
     users_group_to_perm = relationship('UserGroupToPerm', cascade='all')
@@ -857,7 +865,7 @@ class UserGroup(Base, BaseModel):
     def get_by_group_name(cls, group_name, cache=False,
                           case_insensitive=False):
         if case_insensitive:
-            q = cls.query().filter(cls.users_group_name.ilike(group_name))
+            q = cls.query().filter(func.lower(cls.users_group_name) == func.lower(group_name))
         else:
             q = cls.query().filter(cls.users_group_name == group_name)
         if cache:
@@ -899,13 +907,12 @@ class UserGroup(Base, BaseModel):
 class UserGroupMember(Base, BaseModel):
     __tablename__ = 'users_groups_members'
     __table_args__ = (
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True},
+        _table_args_default_dict,
     )
 
-    users_group_member_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    users_group_id = Column(Integer(), ForeignKey('users_groups.users_group_id'), nullable=False, unique=None, default=None)
-    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False, unique=None, default=None)
+    users_group_member_id = Column(Integer(), unique=True, primary_key=True)
+    users_group_id = Column(Integer(), ForeignKey('users_groups.users_group_id'), nullable=False)
+    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False)
 
     user = relationship('User')
     users_group = relationship('UserGroup')
@@ -919,18 +926,18 @@ class RepositoryField(Base, BaseModel):
     __tablename__ = 'repositories_fields'
     __table_args__ = (
         UniqueConstraint('repository_id', 'field_key'),  # no-multi field
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True},
+        _table_args_default_dict,
     )
+
     PREFIX = 'ex_'  # prefix used in form to not conflict with already existing fields
 
-    repo_field_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    repository_id = Column(Integer(), ForeignKey('repositories.repo_id'), nullable=False, unique=None, default=None)
-    field_key = Column(String(250, convert_unicode=False))
-    field_label = Column(String(1024, convert_unicode=False), nullable=False)
-    field_value = Column(String(10000, convert_unicode=False), nullable=False)
-    field_desc = Column(String(1024, convert_unicode=False), nullable=False)
-    field_type = Column(String(255), nullable=False, unique=None)
+    repo_field_id = Column(Integer(), unique=True, primary_key=True)
+    repository_id = Column(Integer(), ForeignKey('repositories.repo_id'), nullable=False)
+    field_key = Column(String(250), nullable=False)
+    field_label = Column(String(1024), nullable=False)
+    field_value = Column(String(10000), nullable=False)
+    field_desc = Column(String(1024), nullable=False)
+    field_type = Column(String(255), nullable=False)
     created_on = Column(DateTime(timezone=False), nullable=False, default=datetime.datetime.now)
 
     repository = relationship('Repository')
@@ -947,8 +954,8 @@ class RepositoryField(Base, BaseModel):
 
     @classmethod
     def get_by_key_name(cls, key, repo):
-        row = cls.query()\
-                .filter(cls.repository == repo)\
+        row = cls.query() \
+                .filter(cls.repository == repo) \
                 .filter(cls.field_key == key).scalar()
         return row
 
@@ -956,11 +963,10 @@ class RepositoryField(Base, BaseModel):
 class Repository(Base, BaseModel):
     __tablename__ = 'repositories'
     __table_args__ = (
-        UniqueConstraint('repo_name'),
         Index('r_repo_name_idx', 'repo_name'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True},
+        _table_args_default_dict,
     )
+
     DEFAULT_CLONE_URI = '{scheme}://{user}@{netloc}/{repo}'
     DEFAULT_CLONE_URI_ID = '{scheme}://{user}@{netloc}/_{repoid}'
 
@@ -968,26 +974,26 @@ class Repository(Base, BaseModel):
     STATE_PENDING = 'repo_state_pending'
     STATE_ERROR = 'repo_state_error'
 
-    repo_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    repo_name = Column(String(255, convert_unicode=False), nullable=False, unique=True, default=None)
-    repo_state = Column(String(255), nullable=True)
+    repo_id = Column(Integer(), unique=True, primary_key=True)
+    repo_name = Column(Unicode(255), nullable=False, unique=True)
+    repo_state = Column(String(255), nullable=False)
 
-    clone_uri = Column(String(255, convert_unicode=False), nullable=True, unique=False, default=None)
-    repo_type = Column(String(255, convert_unicode=False), nullable=False, unique=False, default=None)
-    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False, unique=False, default=None)
-    private = Column(Boolean(), nullable=True, unique=None, default=None)
-    enable_statistics = Column("statistics", Boolean(), nullable=True, unique=None, default=True)
-    enable_downloads = Column("downloads", Boolean(), nullable=True, unique=None, default=True)
-    description = Column(String(10000, convert_unicode=False), nullable=True, unique=None, default=None)
-    created_on = Column(DateTime(timezone=False), nullable=False, unique=None, default=datetime.datetime.now)
-    updated_on = Column(DateTime(timezone=False), nullable=False, unique=None, default=datetime.datetime.now)
-    _landing_revision = Column("landing_revision", String(255, convert_unicode=False), nullable=False, unique=False, default=None)
-    enable_locking = Column(Boolean(), nullable=False, unique=None, default=False)
-    _locked = Column("locked", String(255, convert_unicode=False), nullable=True, unique=False, default=None)
-    _changeset_cache = Column("changeset_cache", LargeBinary(), nullable=True) #JSON data
+    clone_uri = Column(String(255), nullable=True) # FIXME: not nullable?
+    repo_type = Column(String(255), nullable=False)
+    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False)
+    private = Column(Boolean(), nullable=False)
+    enable_statistics = Column("statistics", Boolean(), nullable=False, default=True)
+    enable_downloads = Column("downloads", Boolean(), nullable=False, default=True)
+    description = Column(Unicode(10000), nullable=False)
+    created_on = Column(DateTime(timezone=False), nullable=False, default=datetime.datetime.now)
+    updated_on = Column(DateTime(timezone=False), nullable=False, default=datetime.datetime.now)
+    _landing_revision = Column("landing_revision", String(255), nullable=False)
+    enable_locking = Column(Boolean(), nullable=False, default=False)
+    _locked = Column("locked", String(255), nullable=True) # FIXME: not nullable?
+    _changeset_cache = Column("changeset_cache", LargeBinary(), nullable=True) # JSON data # FIXME: not nullable?
 
-    fork_id = Column(Integer(), ForeignKey('repositories.repo_id'), nullable=True, unique=False, default=None)
-    group_id = Column(Integer(), ForeignKey('groups.group_id'), nullable=True, unique=False, default=None)
+    fork_id = Column(Integer(), ForeignKey('repositories.repo_id'), nullable=True)
+    group_id = Column(Integer(), ForeignKey('groups.group_id'), nullable=True)
 
     user = relationship('User')
     fork = relationship('Repository', remote_side=repo_id)
@@ -1083,8 +1089,8 @@ class Repository(Base, BaseModel):
     @classmethod
     def get_by_repo_name(cls, repo_name):
         q = Session().query(cls).filter(cls.repo_name == repo_name)
-        q = q.options(joinedload(Repository.fork))\
-                .options(joinedload(Repository.user))\
+        q = q.options(joinedload(Repository.fork)) \
+                .options(joinedload(Repository.user)) \
                 .options(joinedload(Repository.group))
         return q.scalar()
 
@@ -1105,7 +1111,7 @@ class Repository(Base, BaseModel):
 
         :param cls:
         """
-        q = Session().query(Ui)\
+        q = Session().query(Ui) \
             .filter(Ui.ui_key == cls.url_sep())
         q = q.options(FromCache("sql_cache_short", "repository_repo_path"))
         return q.one().ui_value
@@ -1174,9 +1180,9 @@ class Repository(Base, BaseModel):
         """
         Returns associated cache keys for that repo
         """
-        return CacheInvalidation.query()\
-            .filter(CacheInvalidation.cache_args == self.repo_name)\
-            .order_by(CacheInvalidation.cache_key)\
+        return CacheInvalidation.query() \
+            .filter(CacheInvalidation.cache_args == self.repo_name) \
+            .order_by(CacheInvalidation.cache_key) \
             .all()
 
     def get_new_name(self, repo_name):
@@ -1378,11 +1384,11 @@ class Repository(Base, BaseModel):
 
         :param revisions: filter query by revisions only
         """
-        cmts = ChangesetComment.query()\
+        cmts = ChangesetComment.query() \
             .filter(ChangesetComment.repo == self)
         if revisions is not None:
             if not revisions:
-                return [] # don't use sql 'in' on empty set
+                return {} # don't use sql 'in' on empty set
             cmts = cmts.filter(ChangesetComment.revision.in_(revisions))
         grouped = collections.defaultdict(list)
         for cmt in cmts.all():
@@ -1399,9 +1405,9 @@ class Repository(Base, BaseModel):
         if not revisions:
             return {}
 
-        statuses = ChangesetStatus.query()\
-            .filter(ChangesetStatus.repo == self)\
-            .filter(ChangesetStatus.version == 0)\
+        statuses = ChangesetStatus.query() \
+            .filter(ChangesetStatus.repo == self) \
+            .filter(ChangesetStatus.version == 0) \
             .filter(ChangesetStatus.revision.in_(revisions))
 
         grouped = {}
@@ -1412,7 +1418,8 @@ class Repository(Base, BaseModel):
                 pr_nice_id = PullRequest.make_nice_id(pr_id)
                 pr_repo = stat.pull_request.other_repo.repo_name
             grouped[stat.revision] = [str(stat.status), stat.status_lbl,
-                                      pr_id, pr_repo, pr_nice_id]
+                                      pr_id, pr_repo, pr_nice_id,
+                                      stat.author]
         return grouped
 
     def _repo_size(self):
@@ -1443,7 +1450,8 @@ class Repository(Base, BaseModel):
 
     def scm_instance_cached(self, valid_cache_keys=None):
         @cache_region('long_term')
-        def _c(repo_name):
+        def _c(repo_name): # repo_name is just for the cache key
+            log.debug('Creating new %s scm_instance and populating cache', repo_name)
             return self.__get_instance()
         rn = self.repo_name
 
@@ -1452,19 +1460,18 @@ class Repository(Base, BaseModel):
             log.debug('Cache for %s invalidated, getting new object', rn)
             region_invalidate(_c, None, rn)
         else:
-            log.debug('Getting scm_instance of %s from cache', rn)
+            log.debug('Trying to get scm_instance of %s from cache', rn)
         return _c(rn)
 
     def __get_instance(self):
-        repo_full_path = self.repo_full_path
-
-        alias = get_scm(safe_str(repo_full_path))[0]
+        repo_full_path = safe_str(self.repo_full_path)
+        alias = get_scm(repo_full_path)[0]
         log.debug('Creating instance of %s repository from %s',
-                  alias, repo_full_path)
+                  alias, self.repo_full_path)
         backend = get_backend(alias)
 
         if alias == 'hg':
-            repo = backend(safe_str(repo_full_path), create=False,
+            repo = backend(repo_full_path, create=False,
                            baseui=self._ui)
         else:
             repo = backend(repo_full_path, create=False)
@@ -1479,19 +1486,18 @@ class RepoGroup(Base, BaseModel):
     __table_args__ = (
         UniqueConstraint('group_name', 'group_parent_id'),
         CheckConstraint('group_id != group_parent_id'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True},
+        _table_args_default_dict,
     )
     __mapper_args__ = {'order_by': 'group_name'}
 
     SEP = ' &raquo; '
 
-    group_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    group_name = Column(String(255, convert_unicode=False), nullable=False, unique=True, default=None)
-    group_parent_id = Column(Integer(), ForeignKey('groups.group_id'), nullable=True, unique=None, default=None)
-    group_description = Column(String(10000, convert_unicode=False), nullable=True, unique=None, default=None)
-    enable_locking = Column(Boolean(), nullable=False, unique=None, default=False)
-    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False, unique=False, default=None)
+    group_id = Column(Integer(), unique=True, primary_key=True)
+    group_name = Column(Unicode(255), nullable=False, unique=True)
+    group_parent_id = Column(Integer(), ForeignKey('groups.group_id'), nullable=True)
+    group_description = Column(Unicode(10000), nullable=False)
+    enable_locking = Column(Boolean(), nullable=False, default=False)
+    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False)
     created_on = Column(DateTime(timezone=False), nullable=False, default=datetime.datetime.now)
 
     repo_group_to_perm = relationship('UserRepoGroupToPerm', cascade='all', order_by='UserRepoGroupToPerm.group_to_perm_id')
@@ -1528,10 +1534,10 @@ class RepoGroup(Base, BaseModel):
     @classmethod
     def get_by_group_name(cls, group_name, cache=False, case_insensitive=False):
         if case_insensitive:
-            gr = cls.query()\
-                .filter(cls.group_name.ilike(group_name))
+            gr = cls.query() \
+                .filter(func.lower(cls.group_name) == func.lower(group_name))
         else:
-            gr = cls.query()\
+            gr = cls.query() \
                 .filter(cls.group_name == group_name)
         if cache:
             gr = gr.options(FromCache(
@@ -1583,8 +1589,8 @@ class RepoGroup(Base, BaseModel):
 
     @property
     def repositories(self):
-        return Repository.query()\
-                .filter(Repository.group == self)\
+        return Repository.query() \
+                .filter(Repository.group == self) \
                 .order_by(Repository.repo_name)
 
     @property
@@ -1659,9 +1665,9 @@ class Permission(Base, BaseModel):
     __tablename__ = 'permissions'
     __table_args__ = (
         Index('p_perm_name_idx', 'permission_name'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True},
+        _table_args_default_dict,
     )
+
     PERMS = [
         ('hg.admin', _('Kallithea Administrator')),
 
@@ -1747,9 +1753,8 @@ class Permission(Base, BaseModel):
         'hg.create.repository': 1
     }
 
-    permission_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    permission_name = Column(String(255, convert_unicode=False), nullable=True, unique=None, default=None)
-    permission_longname = Column(String(255, convert_unicode=False), nullable=True, unique=None, default=None)
+    permission_id = Column(Integer(), unique=True, primary_key=True)
+    permission_name = Column(String(255), nullable=False)
 
     def __unicode__(self):
         return u"<%s('%s:%s')>" % (
@@ -1762,27 +1767,27 @@ class Permission(Base, BaseModel):
 
     @classmethod
     def get_default_perms(cls, default_user_id):
-        q = Session().query(UserRepoToPerm, Repository, cls)\
-         .join((Repository, UserRepoToPerm.repository_id == Repository.repo_id))\
-         .join((cls, UserRepoToPerm.permission_id == cls.permission_id))\
+        q = Session().query(UserRepoToPerm, Repository, cls) \
+         .join((Repository, UserRepoToPerm.repository_id == Repository.repo_id)) \
+         .join((cls, UserRepoToPerm.permission_id == cls.permission_id)) \
          .filter(UserRepoToPerm.user_id == default_user_id)
 
         return q.all()
 
     @classmethod
     def get_default_group_perms(cls, default_user_id):
-        q = Session().query(UserRepoGroupToPerm, RepoGroup, cls)\
-         .join((RepoGroup, UserRepoGroupToPerm.group_id == RepoGroup.group_id))\
-         .join((cls, UserRepoGroupToPerm.permission_id == cls.permission_id))\
+        q = Session().query(UserRepoGroupToPerm, RepoGroup, cls) \
+         .join((RepoGroup, UserRepoGroupToPerm.group_id == RepoGroup.group_id)) \
+         .join((cls, UserRepoGroupToPerm.permission_id == cls.permission_id)) \
          .filter(UserRepoGroupToPerm.user_id == default_user_id)
 
         return q.all()
 
     @classmethod
     def get_default_user_group_perms(cls, default_user_id):
-        q = Session().query(UserUserGroupToPerm, UserGroup, cls)\
-         .join((UserGroup, UserUserGroupToPerm.user_group_id == UserGroup.users_group_id))\
-         .join((cls, UserUserGroupToPerm.permission_id == cls.permission_id))\
+        q = Session().query(UserUserGroupToPerm, UserGroup, cls) \
+         .join((UserGroup, UserUserGroupToPerm.user_group_id == UserGroup.users_group_id)) \
+         .join((cls, UserUserGroupToPerm.permission_id == cls.permission_id)) \
          .filter(UserUserGroupToPerm.user_id == default_user_id)
 
         return q.all()
@@ -1792,13 +1797,13 @@ class UserRepoToPerm(Base, BaseModel):
     __tablename__ = 'repo_to_perm'
     __table_args__ = (
         UniqueConstraint('user_id', 'repository_id', 'permission_id'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        _table_args_default_dict,
     )
-    repo_to_perm_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False, unique=None, default=None)
-    permission_id = Column(Integer(), ForeignKey('permissions.permission_id'), nullable=False, unique=None, default=None)
-    repository_id = Column(Integer(), ForeignKey('repositories.repo_id'), nullable=False, unique=None, default=None)
+
+    repo_to_perm_id = Column(Integer(), unique=True, primary_key=True)
+    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False)
+    permission_id = Column(Integer(), ForeignKey('permissions.permission_id'), nullable=False)
+    repository_id = Column(Integer(), ForeignKey('repositories.repo_id'), nullable=False)
 
     user = relationship('User')
     repository = relationship('Repository')
@@ -1821,13 +1826,13 @@ class UserUserGroupToPerm(Base, BaseModel):
     __tablename__ = 'user_user_group_to_perm'
     __table_args__ = (
         UniqueConstraint('user_id', 'user_group_id', 'permission_id'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        _table_args_default_dict,
     )
-    user_user_group_to_perm_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False, unique=None, default=None)
-    permission_id = Column(Integer(), ForeignKey('permissions.permission_id'), nullable=False, unique=None, default=None)
-    user_group_id = Column(Integer(), ForeignKey('users_groups.users_group_id'), nullable=False, unique=None, default=None)
+
+    user_user_group_to_perm_id = Column(Integer(), unique=True, primary_key=True)
+    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False)
+    permission_id = Column(Integer(), ForeignKey('permissions.permission_id'), nullable=False)
+    user_group_id = Column(Integer(), ForeignKey('users_groups.users_group_id'), nullable=False)
 
     user = relationship('User')
     user_group = relationship('UserGroup')
@@ -1850,12 +1855,12 @@ class UserToPerm(Base, BaseModel):
     __tablename__ = 'user_to_perm'
     __table_args__ = (
         UniqueConstraint('user_id', 'permission_id'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        _table_args_default_dict,
     )
-    user_to_perm_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False, unique=None, default=None)
-    permission_id = Column(Integer(), ForeignKey('permissions.permission_id'), nullable=False, unique=None, default=None)
+
+    user_to_perm_id = Column(Integer(), unique=True, primary_key=True)
+    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False)
+    permission_id = Column(Integer(), ForeignKey('permissions.permission_id'), nullable=False)
 
     user = relationship('User')
     permission = relationship('Permission')
@@ -1868,13 +1873,13 @@ class UserGroupRepoToPerm(Base, BaseModel):
     __tablename__ = 'users_group_repo_to_perm'
     __table_args__ = (
         UniqueConstraint('repository_id', 'users_group_id', 'permission_id'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        _table_args_default_dict,
     )
-    users_group_to_perm_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    users_group_id = Column(Integer(), ForeignKey('users_groups.users_group_id'), nullable=False, unique=None, default=None)
-    permission_id = Column(Integer(), ForeignKey('permissions.permission_id'), nullable=False, unique=None, default=None)
-    repository_id = Column(Integer(), ForeignKey('repositories.repo_id'), nullable=False, unique=None, default=None)
+
+    users_group_to_perm_id = Column(Integer(), unique=True, primary_key=True)
+    users_group_id = Column(Integer(), ForeignKey('users_groups.users_group_id'), nullable=False)
+    permission_id = Column(Integer(), ForeignKey('permissions.permission_id'), nullable=False)
+    repository_id = Column(Integer(), ForeignKey('repositories.repo_id'), nullable=False)
 
     users_group = relationship('UserGroup')
     permission = relationship('Permission')
@@ -1898,13 +1903,13 @@ class UserGroupUserGroupToPerm(Base, BaseModel):
     __table_args__ = (
         UniqueConstraint('target_user_group_id', 'user_group_id', 'permission_id'),
         CheckConstraint('target_user_group_id != user_group_id'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        _table_args_default_dict,
     )
-    user_group_user_group_to_perm_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    target_user_group_id = Column(Integer(), ForeignKey('users_groups.users_group_id'), nullable=False, unique=None, default=None)
-    permission_id = Column(Integer(), ForeignKey('permissions.permission_id'), nullable=False, unique=None, default=None)
-    user_group_id = Column(Integer(), ForeignKey('users_groups.users_group_id'), nullable=False, unique=None, default=None)
+
+    user_group_user_group_to_perm_id = Column(Integer(), unique=True, primary_key=True)
+    target_user_group_id = Column(Integer(), ForeignKey('users_groups.users_group_id'), nullable=False)
+    permission_id = Column(Integer(), ForeignKey('permissions.permission_id'), nullable=False)
+    user_group_id = Column(Integer(), ForeignKey('users_groups.users_group_id'), nullable=False)
 
     target_user_group = relationship('UserGroup', primaryjoin='UserGroupUserGroupToPerm.target_user_group_id==UserGroup.users_group_id')
     user_group = relationship('UserGroup', primaryjoin='UserGroupUserGroupToPerm.user_group_id==UserGroup.users_group_id')
@@ -1927,12 +1932,12 @@ class UserGroupToPerm(Base, BaseModel):
     __tablename__ = 'users_group_to_perm'
     __table_args__ = (
         UniqueConstraint('users_group_id', 'permission_id',),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        _table_args_default_dict,
     )
-    users_group_to_perm_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    users_group_id = Column(Integer(), ForeignKey('users_groups.users_group_id'), nullable=False, unique=None, default=None)
-    permission_id = Column(Integer(), ForeignKey('permissions.permission_id'), nullable=False, unique=None, default=None)
+
+    users_group_to_perm_id = Column(Integer(), unique=True, primary_key=True)
+    users_group_id = Column(Integer(), ForeignKey('users_groups.users_group_id'), nullable=False)
+    permission_id = Column(Integer(), ForeignKey('permissions.permission_id'), nullable=False)
 
     users_group = relationship('UserGroup')
     permission = relationship('Permission')
@@ -1942,14 +1947,13 @@ class UserRepoGroupToPerm(Base, BaseModel):
     __tablename__ = 'user_repo_group_to_perm'
     __table_args__ = (
         UniqueConstraint('user_id', 'group_id', 'permission_id'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        _table_args_default_dict,
     )
 
-    group_to_perm_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False, unique=None, default=None)
-    group_id = Column(Integer(), ForeignKey('groups.group_id'), nullable=False, unique=None, default=None)
-    permission_id = Column(Integer(), ForeignKey('permissions.permission_id'), nullable=False, unique=None, default=None)
+    group_to_perm_id = Column(Integer(), unique=True, primary_key=True)
+    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False)
+    group_id = Column(Integer(), ForeignKey('groups.group_id'), nullable=False)
+    permission_id = Column(Integer(), ForeignKey('permissions.permission_id'), nullable=False)
 
     user = relationship('User')
     group = relationship('RepoGroup')
@@ -1969,14 +1973,13 @@ class UserGroupRepoGroupToPerm(Base, BaseModel):
     __tablename__ = 'users_group_repo_group_to_perm'
     __table_args__ = (
         UniqueConstraint('users_group_id', 'group_id'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        _table_args_default_dict,
     )
 
-    users_group_repo_group_to_perm_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    users_group_id = Column(Integer(), ForeignKey('users_groups.users_group_id'), nullable=False, unique=None, default=None)
-    group_id = Column(Integer(), ForeignKey('groups.group_id'), nullable=False, unique=None, default=None)
-    permission_id = Column(Integer(), ForeignKey('permissions.permission_id'), nullable=False, unique=None, default=None)
+    users_group_repo_group_to_perm_id = Column(Integer(), unique=True, primary_key=True)
+    users_group_id = Column(Integer(), ForeignKey('users_groups.users_group_id'), nullable=False)
+    group_id = Column(Integer(), ForeignKey('groups.group_id'), nullable=False)
+    permission_id = Column(Integer(), ForeignKey('permissions.permission_id'), nullable=False)
 
     users_group = relationship('UserGroup')
     permission = relationship('Permission')
@@ -1995,12 +1998,11 @@ class UserGroupRepoGroupToPerm(Base, BaseModel):
 class Statistics(Base, BaseModel):
     __tablename__ = 'statistics'
     __table_args__ = (
-         UniqueConstraint('repository_id'),
-         {'extend_existing': True, 'mysql_engine': 'InnoDB',
-          'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+         _table_args_default_dict,
     )
-    stat_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    repository_id = Column(Integer(), ForeignKey('repositories.repo_id'), nullable=False, unique=True, default=None)
+
+    stat_id = Column(Integer(), unique=True, primary_key=True)
+    repository_id = Column(Integer(), ForeignKey('repositories.repo_id'), nullable=False, unique=True)
     stat_on_revision = Column(Integer(), nullable=False)
     commit_activity = Column(LargeBinary(1000000), nullable=False)#JSON data
     commit_activity_combined = Column(LargeBinary(), nullable=False)#JSON data
@@ -2014,15 +2016,14 @@ class UserFollowing(Base, BaseModel):
     __table_args__ = (
         UniqueConstraint('user_id', 'follows_repository_id'),
         UniqueConstraint('user_id', 'follows_user_id'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        _table_args_default_dict,
     )
 
-    user_following_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False, unique=None, default=None)
-    follows_repo_id = Column("follows_repository_id", Integer(), ForeignKey('repositories.repo_id'), nullable=True, unique=None, default=None)
-    follows_user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=True, unique=None, default=None)
-    follows_from = Column(DateTime(timezone=False), nullable=True, unique=None, default=datetime.datetime.now)
+    user_following_id = Column(Integer(), unique=True, primary_key=True)
+    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False)
+    follows_repo_id = Column("follows_repository_id", Integer(), ForeignKey('repositories.repo_id'), nullable=True)
+    follows_user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=True)
+    follows_from = Column(DateTime(timezone=False), nullable=False, default=datetime.datetime.now)
 
     user = relationship('User', primaryjoin='User.user_id==UserFollowing.user_id')
 
@@ -2037,20 +2038,19 @@ class UserFollowing(Base, BaseModel):
 class CacheInvalidation(Base, BaseModel):
     __tablename__ = 'cache_invalidation'
     __table_args__ = (
-        UniqueConstraint('cache_key'),
         Index('key_idx', 'cache_key'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True},
+        _table_args_default_dict,
     )
+
     # cache_id, not used
-    cache_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
+    cache_id = Column(Integer(), unique=True, primary_key=True)
     # cache_key as created by _get_cache_key
-    cache_key = Column(String(255, convert_unicode=False))
+    cache_key = Column(Unicode(255), nullable=False, unique=True)
     # cache_args is a repo_name
-    cache_args = Column(String(255, convert_unicode=False))
+    cache_args = Column(Unicode(255), nullable=False)
     # instance sets cache_active True when it is caching, other instances set
     # cache_active to False to indicate that this cache is invalid
-    cache_active = Column(Boolean(), nullable=True, unique=None, default=False)
+    cache_active = Column(Boolean(), nullable=False, default=False)
 
     def __init__(self, cache_key, repo_name=''):
         self.cache_key = cache_key
@@ -2104,7 +2104,7 @@ class CacheInvalidation(Base, BaseModel):
         return "%s%s" % (prefix, key)
 
     @classmethod
-    def set_invalidate(cls, repo_name, delete=False):
+    def set_invalidate(cls, repo_name):
         """
         Mark all caches of a repo as invalid in the database.
         """
@@ -2115,11 +2115,7 @@ class CacheInvalidation(Base, BaseModel):
         for inv_obj in inv_objs:
             log.debug('marking %s key for invalidation based on repo_name=%s',
                       inv_obj, safe_str(repo_name))
-            if delete:
-                Session().delete(inv_obj)
-            else:
-                inv_obj.cache_active = False
-                Session().add(inv_obj)
+            Session().delete(inv_obj)
         Session().commit()
 
     @classmethod
@@ -2138,7 +2134,7 @@ class CacheInvalidation(Base, BaseModel):
 
         inv_obj = cls.query().filter(cls.cache_key == cache_key).scalar()
         if inv_obj is None:
-            inv_obj = CacheInvalidation(cache_key, repo_name)
+            inv_obj = cls(cache_key, repo_name)
         elif inv_obj.cache_active:
             return True
         inv_obj.cache_active = True
@@ -2169,15 +2165,15 @@ class ChangesetComment(Base, BaseModel):
     __table_args__ = (
         Index('cc_revision_idx', 'revision'),
         Index('cc_pull_request_id_idx', 'pull_request_id'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True},
+        _table_args_default_dict,
     )
-    comment_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
+
+    comment_id = Column(Integer(), unique=True, primary_key=True)
     repo_id = Column(Integer(), ForeignKey('repositories.repo_id'), nullable=False)
-    revision = Column(String(40))
-    pull_request_id = Column(Integer(), ForeignKey('pull_requests.pull_request_id'))
-    line_no = Column(Unicode(10))
-    f_path = Column(Unicode(1000))
+    revision = Column(String(40), nullable=True)
+    pull_request_id = Column(Integer(), ForeignKey('pull_requests.pull_request_id'), nullable=True)
+    line_no = Column(Unicode(10), nullable=True)
+    f_path = Column(Unicode(1000), nullable=True)
     user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False)
     text = Column(UnicodeText(25000), nullable=False)
     created_on = Column(DateTime(timezone=False), nullable=False, default=datetime.datetime.now)
@@ -2201,7 +2197,7 @@ class ChangesetComment(Base, BaseModel):
         :param cls:
         :param revision:
         """
-        q = Session().query(User)\
+        q = Session().query(User) \
                 .join(ChangesetComment.author)
         if revision is not None:
             q = q.filter(cls.revision == revision)
@@ -2217,6 +2213,10 @@ class ChangesetComment(Base, BaseModel):
         elif self.pull_request_id is not None:
             return self.pull_request.url(anchor=anchor)
 
+    def deletable(self):
+        return self.created_on > datetime.datetime.now() - datetime.timedelta(minutes=5)
+
+
 class ChangesetStatus(Base, BaseModel):
     __tablename__ = 'changeset_statuses'
     __table_args__ = (
@@ -2226,9 +2226,9 @@ class ChangesetStatus(Base, BaseModel):
         Index('cs_changeset_comment_id_idx', 'changeset_comment_id'),
         Index('cs_pull_request_id_user_id_version_idx', 'pull_request_id', 'user_id', 'version'),
         UniqueConstraint('repo_id', 'revision', 'version'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        _table_args_default_dict,
     )
+
     STATUS_NOT_REVIEWED = DEFAULT = 'not_reviewed'
     STATUS_APPROVED = 'approved'
     STATUS_REJECTED = 'rejected'
@@ -2241,10 +2241,10 @@ class ChangesetStatus(Base, BaseModel):
         (STATUS_UNDER_REVIEW, _("Under review")),
     ]
 
-    changeset_status_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
+    changeset_status_id = Column(Integer(), unique=True, primary_key=True)
     repo_id = Column(Integer(), ForeignKey('repositories.repo_id'), nullable=False)
-    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False, unique=None)
-    revision = Column(String(40), nullable=False)
+    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False)
+    revision = Column(String(40), nullable=True)
     status = Column(String(128), nullable=False, default=DEFAULT)
     changeset_comment_id = Column(Integer(), ForeignKey('changeset_comments.comment_id'), nullable=False)
     modified_at = Column(DateTime(), nullable=False, default=datetime.datetime.now)
@@ -2276,22 +2276,21 @@ class PullRequest(Base, BaseModel):
     __table_args__ = (
         Index('pr_org_repo_id_idx', 'org_repo_id'),
         Index('pr_other_repo_id_idx', 'other_repo_id'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True},
+        _table_args_default_dict,
     )
 
     # values for .status
     STATUS_NEW = u'new'
     STATUS_CLOSED = u'closed'
 
-    pull_request_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    title = Column(Unicode(255), nullable=True)
-    description = Column(UnicodeText(10240))
+    pull_request_id = Column(Integer(), unique=True, primary_key=True)
+    title = Column(Unicode(255), nullable=False)
+    description = Column(UnicodeText(10240), nullable=False)
     status = Column(Unicode(255), nullable=False, default=STATUS_NEW) # only for closedness, not approve/reject/etc
     created_on = Column(DateTime(timezone=False), nullable=False, default=datetime.datetime.now)
     updated_on = Column(DateTime(timezone=False), nullable=False, default=datetime.datetime.now)
-    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False, unique=None)
-    _revisions = Column('revisions', UnicodeText(20500))  # 500 revisions max
+    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False)
+    _revisions = Column('revisions', UnicodeText(20500), nullable=False)  # 500 revisions max
     org_repo_id = Column(Integer(), ForeignKey('repositories.repo_id'), nullable=False)
     org_ref = Column(Unicode(255), nullable=False)
     other_repo_id = Column(Integer(), ForeignKey('repositories.repo_id'), nullable=False)
@@ -2328,10 +2327,10 @@ class PullRequest(Base, BaseModel):
     def user_review_status(self, user_id):
         """Return the user's latest status votes on PR"""
         # note: no filtering on repo - that would be redundant
-        status = ChangesetStatus.query()\
-            .filter(ChangesetStatus.pull_request == self)\
-            .filter(ChangesetStatus.user_id == user_id)\
-            .order_by(ChangesetStatus.version)\
+        status = ChangesetStatus.query() \
+            .filter(ChangesetStatus.pull_request == self) \
+            .filter(ChangesetStatus.user_id == user_id) \
+            .order_by(ChangesetStatus.version) \
             .first()
         return str(status.status) if status else ''
 
@@ -2367,17 +2366,17 @@ class PullRequest(Base, BaseModel):
 class PullRequestReviewers(Base, BaseModel):
     __tablename__ = 'pull_request_reviewers'
     __table_args__ = (
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True},
+        Index('pull_request_reviewers_user_id_idx', 'user_id'),
+        _table_args_default_dict,
     )
 
     def __init__(self, user=None, pull_request=None):
         self.user = user
         self.pull_request = pull_request
 
-    pull_requests_reviewers_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
+    pull_requests_reviewers_id = Column(Integer(), unique=True, primary_key=True)
     pull_request_id = Column(Integer(), ForeignKey('pull_requests.pull_request_id'), nullable=False)
-    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=True)
+    user_id = Column(Integer(), ForeignKey('users.user_id'), nullable=False)
 
     user = relationship('User')
     pull_request = relationship('PullRequest')
@@ -2387,8 +2386,7 @@ class Notification(Base, BaseModel):
     __tablename__ = 'notifications'
     __table_args__ = (
         Index('notification_type_idx', 'type'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True},
+        _table_args_default_dict,
     )
 
     TYPE_CHANGESET_COMMENT = u'cs_comment'
@@ -2398,12 +2396,12 @@ class Notification(Base, BaseModel):
     TYPE_PULL_REQUEST = u'pull_request'
     TYPE_PULL_REQUEST_COMMENT = u'pull_request_comment'
 
-    notification_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    subject = Column(Unicode(512), nullable=True)
-    body = Column(UnicodeText(50000), nullable=True)
-    created_by = Column(Integer(), ForeignKey('users.user_id'), nullable=True)
+    notification_id = Column(Integer(), unique=True, primary_key=True)
+    subject = Column(Unicode(512), nullable=False)
+    body = Column(UnicodeText(50000), nullable=False)
+    created_by = Column(Integer(), ForeignKey('users.user_id'), nullable=False)
     created_on = Column(DateTime(timezone=False), nullable=False, default=datetime.datetime.now)
-    type_ = Column('type', Unicode(255))
+    type_ = Column('type', Unicode(255), nullable=False)
 
     created_by_user = relationship('User')
     notifications_to_users = relationship('UserNotification', cascade="all, delete-orphan")
@@ -2426,11 +2424,15 @@ class Notification(Base, BaseModel):
         notification.type_ = type_
         notification.created_on = datetime.datetime.now()
 
-        for u in recipients:
-            assoc = UserNotification()
-            assoc.notification = notification
-            assoc.user_id = u.user_id
-            Session().add(assoc)
+        for recipient in recipients:
+            un = UserNotification()
+            un.notification = notification
+            un.user_id = recipient.user_id
+            # Mark notifications to self "pre-read" - should perhaps just be skipped
+            if recipient == created_by:
+                un.read = True
+            Session().add(un)
+
         Session().add(notification)
         Session().flush() # assign notificaiton.notification_id
         return notification
@@ -2445,13 +2447,13 @@ class UserNotification(Base, BaseModel):
     __tablename__ = 'user_to_notification'
     __table_args__ = (
         UniqueConstraint('user_id', 'notification_id'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        _table_args_default_dict,
     )
+
     user_id = Column(Integer(), ForeignKey('users.user_id'), primary_key=True)
     notification_id = Column(Integer(), ForeignKey('notifications.notification_id'), primary_key=True)
-    read = Column(Boolean, default=False)
-    sent_on = Column(DateTime(timezone=False), nullable=True, unique=None)
+    read = Column(Boolean, nullable=False, default=False)
+    sent_on = Column(DateTime(timezone=False), nullable=True) # FIXME: not nullable?
 
     user = relationship('User')
     notification = relationship('Notification')
@@ -2466,17 +2468,17 @@ class Gist(Base, BaseModel):
     __table_args__ = (
         Index('g_gist_access_id_idx', 'gist_access_id'),
         Index('g_created_on_idx', 'created_on'),
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True}
+        _table_args_default_dict,
     )
+
     GIST_PUBLIC = u'public'
     GIST_PRIVATE = u'private'
     DEFAULT_FILENAME = u'gistfile1.txt'
 
-    gist_id = Column(Integer(), nullable=False, unique=True, primary_key=True)
-    gist_access_id = Column(Unicode(250))
-    gist_description = Column(UnicodeText(1024))
-    gist_owner = Column('user_id', Integer(), ForeignKey('users.user_id'), nullable=True)
+    gist_id = Column(Integer(), unique=True, primary_key=True)
+    gist_access_id = Column(Unicode(250), nullable=False)
+    gist_description = Column(UnicodeText(1024), nullable=False)
+    gist_owner = Column('user_id', Integer(), ForeignKey('users.user_id'), nullable=False)
     gist_expires = Column(Float(53), nullable=False)
     gist_type = Column(Unicode(128), nullable=False)
     created_on = Column(DateTime(timezone=False), nullable=False, default=datetime.datetime.now)
@@ -2515,7 +2517,7 @@ class Gist(Base, BaseModel):
         :param cls:
         """
         from kallithea.model.gist import GIST_STORE_LOC
-        q = Session().query(Ui)\
+        q = Session().query(Ui) \
             .filter(Ui.ui_key == URL_SEP)
         q = q.options(FromCache("sql_cache_short", "repository_repo_path"))
         return os.path.join(q.one().ui_value, GIST_STORE_LOC)
@@ -2554,9 +2556,9 @@ class Gist(Base, BaseModel):
 class DbMigrateVersion(Base, BaseModel):
     __tablename__ = 'db_migrate_version'
     __table_args__ = (
-        {'extend_existing': True, 'mysql_engine': 'InnoDB',
-         'mysql_charset': 'utf8', 'sqlite_autoincrement': True},
+        _table_args_default_dict,
     )
-    repository_id = Column(String(250), nullable=False, unique=True, primary_key=True)
-    repository_path = Column(Text)
-    version = Column(Integer)
+
+    repository_id = Column(String(250), unique=True, primary_key=True)
+    repository_path = Column(Text, nullable=False)
+    version = Column(Integer, nullable=False)

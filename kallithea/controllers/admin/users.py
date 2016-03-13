@@ -31,10 +31,9 @@ import formencode
 
 from formencode import htmlfill
 from pylons import request, tmpl_context as c, url, config
-from pylons.controllers.util import redirect
 from pylons.i18n.translation import _
 from sqlalchemy.sql.expression import func
-from webob.exc import HTTPNotFound
+from webob.exc import HTTPFound, HTTPNotFound
 
 import kallithea
 from kallithea.lib.exceptions import DefaultUserException, \
@@ -72,9 +71,9 @@ class UsersController(BaseController):
         """GET /users: All items in the collection"""
         # url('users')
 
-        c.users_list = User.query().order_by(User.username)\
-                        .filter(User.username != User.DEFAULT_USER)\
-                        .order_by(func.lower(User.username))\
+        c.users_list = User.query().order_by(User.username) \
+                        .filter(User.username != User.DEFAULT_USER) \
+                        .order_by(func.lower(User.username)) \
                         .all()
 
         users_data = []
@@ -148,7 +147,7 @@ class UsersController(BaseController):
             log.error(traceback.format_exc())
             h.flash(_('Error occurred during creation of user %s') \
                     % request.POST.get('username'), category='error')
-        return redirect(url('users'))
+        raise HTTPFound(location=url('users'))
 
     def new(self, format='html'):
         """GET /users/new: Form to create a new item"""
@@ -201,7 +200,7 @@ class UsersController(BaseController):
             log.error(traceback.format_exc())
             h.flash(_('Error occurred during update of user %s') \
                     % form_result.get('username'), category='error')
-        return redirect(url('edit_user', id=id))
+        raise HTTPFound(location=url('edit_user', id=id))
 
     def delete(self, id):
         """DELETE /users/id: Delete an existing item"""
@@ -222,7 +221,7 @@ class UsersController(BaseController):
             log.error(traceback.format_exc())
             h.flash(_('An error occurred during deletion of user'),
                     category='error')
-        return redirect(url('users'))
+        raise HTTPFound(location=url('users'))
 
     def show(self, id, format='html'):
         """GET /users/id: Show a specific item"""
@@ -306,7 +305,7 @@ class UsersController(BaseController):
         ApiKeyModel().create(c.user.user_id, description, lifetime)
         Session().commit()
         h.flash(_("API key successfully created"), category='success')
-        return redirect(url('edit_user_api_keys', id=c.user.user_id))
+        raise HTTPFound(location=url('edit_user_api_keys', id=c.user.user_id))
 
     def delete_api_key(self, id):
         c.user = self._get_user_or_raise_if_default(id)
@@ -324,7 +323,7 @@ class UsersController(BaseController):
             Session().commit()
             h.flash(_("API key successfully deleted"), category='success')
 
-        return redirect(url('edit_user_api_keys', id=c.user.user_id))
+        raise HTTPFound(location=url('edit_user_api_keys', id=c.user.user_id))
 
     def update_account(self, id):
         pass
@@ -363,8 +362,8 @@ class UsersController(BaseController):
             Session().add(user)
             user_model = UserModel()
 
-            defs = UserToPerm.query()\
-                .filter(UserToPerm.user == user)\
+            defs = UserToPerm.query() \
+                .filter(UserToPerm.user == user) \
                 .all()
             for ug in defs:
                 Session().delete(ug)
@@ -387,12 +386,12 @@ class UsersController(BaseController):
             log.error(traceback.format_exc())
             h.flash(_('An error occurred during permissions saving'),
                     category='error')
-        return redirect(url('edit_user_perms', id=id))
+        raise HTTPFound(location=url('edit_user_perms', id=id))
 
     def edit_emails(self, id):
         c.user = self._get_user_or_raise_if_default(id)
         c.active = 'emails'
-        c.user_email_map = UserEmailMap.query()\
+        c.user_email_map = UserEmailMap.query() \
             .filter(UserEmailMap.user == c.user).all()
 
         defaults = c.user.get_dict()
@@ -420,7 +419,7 @@ class UsersController(BaseController):
             log.error(traceback.format_exc())
             h.flash(_('An error occurred during email saving'),
                     category='error')
-        return redirect(url('edit_user_emails', id=id))
+        raise HTTPFound(location=url('edit_user_emails', id=id))
 
     def delete_email(self, id):
         """DELETE /user_emails_delete/id: Delete an existing item"""
@@ -431,16 +430,16 @@ class UsersController(BaseController):
         user_model.delete_extra_email(id, email_id)
         Session().commit()
         h.flash(_("Removed email from user"), category='success')
-        return redirect(url('edit_user_emails', id=id))
+        raise HTTPFound(location=url('edit_user_emails', id=id))
 
     def edit_ips(self, id):
         c.user = self._get_user_or_raise_if_default(id)
         c.active = 'ips'
-        c.user_ip_map = UserIpMap.query()\
+        c.user_ip_map = UserIpMap.query() \
             .filter(UserIpMap.user == c.user).all()
 
         c.inherit_default_ips = c.user.inherit_default_permissions
-        c.default_user_ip_map = UserIpMap.query()\
+        c.default_user_ip_map = UserIpMap.query() \
             .filter(UserIpMap.user == User.get_default_user()).all()
 
         defaults = c.user.get_dict()
@@ -470,8 +469,8 @@ class UsersController(BaseController):
                     category='error')
 
         if 'default_user' in request.POST:
-            return redirect(url('admin_permissions_ips'))
-        return redirect(url('edit_user_ips', id=id))
+            raise HTTPFound(location=url('admin_permissions_ips'))
+        raise HTTPFound(location=url('edit_user_ips', id=id))
 
     def delete_ip(self, id):
         """DELETE /user_ips_delete/id: Delete an existing item"""
@@ -483,5 +482,5 @@ class UsersController(BaseController):
         h.flash(_("Removed IP address from user whitelist"), category='success')
 
         if 'default_user' in request.POST:
-            return redirect(url('admin_permissions_ips'))
-        return redirect(url('edit_user_ips', id=id))
+            raise HTTPFound(location=url('admin_permissions_ips'))
+        raise HTTPFound(location=url('edit_user_ips', id=id))

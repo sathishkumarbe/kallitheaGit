@@ -172,7 +172,7 @@ class MercurialRepository(BaseRepository):
                 changeset.short_id)
 
         if date is None:
-            date = datetime.datetime.now().ctime()
+            date = datetime.datetime.now().strftime('%a, %d %b %Y %H:%M:%S')
 
         try:
             self._repo.tag(name, changeset._ctx.node(), message, local, user,
@@ -202,7 +202,7 @@ class MercurialRepository(BaseRepository):
         if message is None:
             message = "Removed tag %s" % name
         if date is None:
-            date = datetime.datetime.now().ctime()
+            date = datetime.datetime.now().strftime('%a, %d %b %Y %H:%M:%S')
         local = False
 
         try:
@@ -361,10 +361,10 @@ class MercurialRepository(BaseRepository):
             return localrepository(self.baseui, self.path, create=create)
         except (Abort, RepoError) as err:
             if create:
-                msg = "Cannot create repository at %s. Original error was %s"\
+                msg = "Cannot create repository at %s. Original error was %s" \
                     % (self.path, err)
             else:
-                msg = "Not valid repository at %s. Original error was %s"\
+                msg = "Not valid repository at %s. Original error was %s" \
                     % (self.path, err)
             raise RepositoryError(msg)
 

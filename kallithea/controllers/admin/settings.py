@@ -31,8 +31,8 @@ import formencode
 
 from formencode import htmlfill
 from pylons import request, tmpl_context as c, url, config
-from pylons.controllers.util import redirect
 from pylons.i18n.translation import _
+from webob.exc import HTTPFound
 
 from kallithea.lib import helpers as h
 from kallithea.lib.auth import LoginRequired, HasPermissionAllDecorator
@@ -64,25 +64,22 @@ class SettingsController(BaseController):
     def _get_hg_ui_settings(self):
         ret = Ui.query().all()
 
-        if not ret:
-            raise Exception('Could not get application ui settings !')
         settings = {}
         for each in ret:
-            k = each.ui_key
+            k = each.ui_section + '_' + each.ui_key
             v = each.ui_value
-            if k == '/':
-                k = 'root_path'
+            if k == 'paths_/':
+                k = 'paths_root_path'
 
-            if k == 'push_ssl':
+            if k == 'web_push_ssl':
                 v = str2bool(v)
 
-            if k.find('.') != -1:
-                k = k.replace('.', '_')
+            k = k.replace('.', '_')
 
             if each.ui_section in ['hooks', 'extensions']:
                 v = each.ui_active
 
-            settings[each.ui_section + '_' + k] = v
+            settings[k] = v
         return settings
 
     @HasPermissionAllDecorator('hg.admin')
@@ -104,66 +101,40 @@ class SettingsController(BaseController):
                      force_defaults=False)
 
             try:
-                sett = Ui.get_by_key('push_ssl')
+                sett = Ui.get_by_key('web', 'push_ssl')
                 sett.ui_value = form_result['web_push_ssl']
-                Session().add(sett)
+
                 if c.visual.allow_repo_location_change:
-                    sett = Ui.get_by_key('/')
+                    sett = Ui.get_by_key('paths', '/')
                     sett.ui_value = form_result['paths_root_path']
-                    Session().add(sett)
 
                 #HOOKS
-                sett = Ui.get_by_key(Ui.HOOK_UPDATE)
+                sett = Ui.get_by_key('hooks', Ui.HOOK_UPDATE)
                 sett.ui_active = form_result['hooks_changegroup_update']
-                Session().add(sett)
 
-                sett = Ui.get_by_key(Ui.HOOK_REPO_SIZE)
+                sett = Ui.get_by_key('hooks', Ui.HOOK_REPO_SIZE)
                 sett.ui_active = form_result['hooks_changegroup_repo_size']
-                Session().add(sett)
 
-                sett = Ui.get_by_key(Ui.HOOK_PUSH)
+                sett = Ui.get_by_key('hooks', Ui.HOOK_PUSH)
                 sett.ui_active = form_result['hooks_changegroup_push_logger']
-                Session().add(sett)
 
-                sett = Ui.get_by_key(Ui.HOOK_PULL)
+                sett = Ui.get_by_key('hooks', Ui.HOOK_PULL)
                 sett.ui_active = form_result['hooks_outgoing_pull_logger']
 
-                Session().add(sett)
-
                 ## EXTENSIONS
-                sett = Ui.get_by_key('largefiles')
-                if not sett:
-                    #make one if it's not there !
-                    sett = Ui()
-                    sett.ui_key = 'largefiles'
-                    sett.ui_section = 'extensions'
+                sett = Ui.get_or_create('extensions', 'largefiles')
                 sett.ui_active = form_result['extensions_largefiles']
-                Session().add(sett)
 
-                sett = Ui.get_by_key('hgsubversion')
-                if not sett:
-                    #make one if it's not there !
-                    sett = Ui()
-                    sett.ui_key = 'hgsubversion'
-                    sett.ui_section = 'extensions'
-
+                sett = Ui.get_or_create('extensions', 'hgsubversion')
                 sett.ui_active = form_result['extensions_hgsubversion']
                 if sett.ui_active:
                     try:
                         import hgsubversion  # pragma: no cover
                     except ImportError:
                         raise HgsubversionImportError
-                Session().add(sett)
 
-#                sett = Ui.get_by_key('hggit')
-#                if not sett:
-#                    #make one if it's not there !
-#                    sett = Ui()
-#                    sett.ui_key = 'hggit'
-#                    sett.ui_section = 'extensions'
-#
+#                sett = Ui.get_or_create('extensions', 'hggit')
 #                sett.ui_active = form_result['extensions_hggit']
-#                Session().add(sett)
 
                 Session().commit()
 
@@ -206,7 +177,7 @@ class SettingsController(BaseController):
             if invalidate_cache:
                 log.debug('invalidating all repositories cache')
                 for repo in Repository.get_all():
-                    ScmModel().mark_for_invalidation(repo.repo_name, delete=True)
+                    ScmModel().mark_for_invalidation(repo.repo_name)
 
             filesystem_repos = ScmModel().repo_scan()
             added, removed = repo2db_mapper(filesystem_repos, rm_obsolete,
@@ -218,7 +189,7 @@ class SettingsController(BaseController):
                  for repo_name in added) or '-',
                  ', '.join(h.escape(safe_unicode(repo_name)) for repo_name in removed) or '-')),
                 category='success')
-            return redirect(url('admin_settings_mapping'))
+            raise HTTPFound(location=url('admin_settings_mapping'))
 
         defaults = Setting.get_app_settings()
         defaults.update(self._get_hg_ui_settings())
@@ -278,7 +249,7 @@ class SettingsController(BaseController):
                           'application settings'),
                           category='error')
 
-            return redirect(url('admin_settings_global'))
+            raise HTTPFound(location=url('admin_settings_global'))
 
         defaults = Setting.get_app_settings()
         defaults.update(self._get_hg_ui_settings())
@@ -336,7 +307,7 @@ class SettingsController(BaseController):
                           'visualisation settings'),
                         category='error')
 
-            return redirect(url('admin_settings_visual'))
+            raise HTTPFound(location=url('admin_settings_visual'))
 
         defaults = Setting.get_app_settings()
         defaults.update(self._get_hg_ui_settings())
@@ -359,12 +330,12 @@ class SettingsController(BaseController):
                                'Kallithea version: %s' % c.kallithea_version)
             if not test_email:
                 h.flash(_('Please enter email address'), category='error')
-                return redirect(url('admin_settings_email'))
+                raise HTTPFound(location=url('admin_settings_email'))
 
-            test_email_txt_body = EmailNotificationModel()\
+            test_email_txt_body = EmailNotificationModel() \
                 .get_email_tmpl(EmailNotificationModel.TYPE_DEFAULT,
                                 'txt', body=test_body)
-            test_email_html_body = EmailNotificationModel()\
+            test_email_html_body = EmailNotificationModel() \
                 .get_email_tmpl(EmailNotificationModel.TYPE_DEFAULT,
                                 'html', body=test_body)
 
@@ -374,7 +345,7 @@ class SettingsController(BaseController):
                      test_email_txt_body, test_email_html_body)
 
             h.flash(_('Send email task created'), category='success')
-            return redirect(url('admin_settings_email'))
+            raise HTTPFound(location=url('admin_settings_email'))
 
         defaults = Setting.get_app_settings()
         defaults.update(self._get_hg_ui_settings())
@@ -425,7 +396,7 @@ class SettingsController(BaseController):
                     h.flash(_('Error occurred during hook creation'),
                             category='error')
 
-                return redirect(url('admin_settings_hooks'))
+                raise HTTPFound(location=url('admin_settings_hooks'))
 
         defaults = Setting.get_app_settings()
         defaults.update(self._get_hg_ui_settings())
@@ -449,7 +420,7 @@ class SettingsController(BaseController):
             full_index = request.POST.get('full_index', False)
             run_task(tasks.whoosh_index, repo_location, full_index)
             h.flash(_('Whoosh reindex task scheduled'), category='success')
-            return redirect(url('admin_settings_search'))
+            raise HTTPFound(location=url('admin_settings_search'))
 
         defaults = Setting.get_app_settings()
         defaults.update(self._get_hg_ui_settings())

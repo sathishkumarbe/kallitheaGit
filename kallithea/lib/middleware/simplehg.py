@@ -37,7 +37,7 @@ from webob.exc import HTTPNotFound, HTTPForbidden, HTTPInternalServerError, \
     HTTPNotAcceptable
 from kallithea.model.db import User
 
-from kallithea.lib.utils2 import safe_str, safe_unicode, fix_PATH, get_server_url,\
+from kallithea.lib.utils2 import safe_str, safe_unicode, fix_PATH, get_server_url, \
     _set_extras
 from kallithea.lib.base import BaseVCSController, WSGIResultCloseCallback
 from kallithea.lib.utils import make_ui, is_valid_repo, ui_sections
@@ -105,7 +105,7 @@ class SimpleHg(BaseVCSController):
         # CHECK ANONYMOUS PERMISSION
         #======================================================================
         if action in ['pull', 'push']:
-            anonymous_user = self.__get_user('default')
+            anonymous_user = User.get_default_user(cache=True)
             username = anonymous_user.username
             if anonymous_user.active:
                 # ONLY check permissions if the user is activated
@@ -152,7 +152,7 @@ class SimpleHg(BaseVCSController):
                 # CHECK PERMISSIONS FOR THIS REQUEST USING GIVEN USERNAME
                 #==============================================================
                 try:
-                    user = self.__get_user(username)
+                    user = User.get_by_username_or_email(username)
                     if user is None or not user.active:
                         return HTTPForbidden()(environ, start_response)
                     username = user.username
@@ -248,9 +248,6 @@ class SimpleHg(BaseVCSController):
 
         return repo_name
 
-    def __get_user(self, username):
-        return User.get_by_username(username)
-
     def __get_action(self, environ):
         """
         Maps mercurial request commands into a clone,pull or push command.
@@ -275,7 +272,7 @@ class SimpleHg(BaseVCSController):
         raise Exception('Unable to detect pull/push action !!'
                         'Are you using non standard command or client ?')
 
-    def __inject_extras(self, repo_path, baseui, extras={}):
+    def __inject_extras(self, repo_path, baseui, extras=None):
         """
         Injects some extra params into baseui instance
 
@@ -294,4 +291,4 @@ class SimpleHg(BaseVCSController):
             for section in ui_sections:
                 for k, v in repoui.configitems(section):
                     baseui.setconfig(section, k, v)
-        _set_extras(extras)
+        _set_extras(extras or {})

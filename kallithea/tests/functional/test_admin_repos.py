@@ -5,8 +5,9 @@ import mock
 import urllib
 
 from kallithea.lib import vcs
-from kallithea.model.db import Repository, RepoGroup, UserRepoToPerm, User,\
-    Permission
+from kallithea.lib.utils2 import safe_str, safe_unicode
+from kallithea.model.db import Repository, RepoGroup, UserRepoToPerm, User, \
+    Permission, Ui
 from kallithea.model.user import UserModel
 from kallithea.tests import *
 from kallithea.model.repo_group import RepoGroupModel
@@ -18,10 +19,10 @@ fixture = Fixture()
 
 
 def _get_permission_for_user(user, repo):
-    perm = UserRepoToPerm.query()\
+    perm = UserRepoToPerm.query() \
                 .filter(UserRepoToPerm.repository ==
-                        Repository.get_by_repo_name(repo))\
-                .filter(UserRepoToPerm.user == User.get_by_username(user))\
+                        Repository.get_by_repo_name(repo)) \
+                .filter(UserRepoToPerm.user == User.get_by_username(user)) \
                 .all()
     return perm
 
@@ -51,7 +52,7 @@ class _BaseTest(object):
     def test_create(self):
         self.log_user()
         repo_name = self.NEW_REPO
-        description = 'description for newly created repo'
+        description = u'description for newly created repo'
         response = self.app.post(url('repos'),
                         fixture._get_repo_create_params(repo_private=False,
                                                 repo_name=repo_name,
@@ -66,7 +67,7 @@ class _BaseTest(object):
                                % (repo_name, repo_name))
 
         # test if the repo was created in the database
-        new_repo = Session().query(Repository)\
+        new_repo = Session().query(Repository) \
             .filter(Repository.repo_name == repo_name).one()
 
         self.assertEqual(new_repo.repo_name, repo_name)
@@ -79,63 +80,26 @@ class _BaseTest(object):
 
         # test if the repository was created on filesystem
         try:
-            vcs.get_repo(os.path.join(TESTS_TMP_PATH, repo_name))
+            vcs.get_repo(safe_str(os.path.join(Ui.get_by_key('paths', '/').ui_value, repo_name)))
         except vcs.exceptions.VCSError:
-            self.fail('no repo %s in filesystem' % repo_name)
+            pytest.fail('no repo %s in filesystem' % repo_name)
 
         RepoModel().delete(repo_name)
         Session().commit()
-
-    def test_create_non_ascii(self):
-        self.log_user()
-        non_ascii = "ąęł"
-        repo_name = "%s%s" % (self.NEW_REPO, non_ascii)
-        repo_name_unicode = repo_name.decode('utf8')
-        description = 'description for newly created repo' + non_ascii
-        description_unicode = description.decode('utf8')
-        response = self.app.post(url('repos'),
-                        fixture._get_repo_create_params(repo_private=False,
-                                                repo_name=repo_name,
-                                                repo_type=self.REPO_TYPE,
-                                                repo_description=description,
-                                                _authentication_token=self.authentication_token()))
-        ## run the check page that triggers the flash message
-        response = self.app.get(url('repo_check_home', repo_name=repo_name))
-        self.assertEqual(response.json, {u'result': True})
-        self.checkSessionFlash(response,
-                               u'Created repository <a href="/%s">%s</a>'
-                               % (urllib.quote(repo_name), repo_name_unicode))
-        # test if the repo was created in the database
-        new_repo = Session().query(Repository)\
-            .filter(Repository.repo_name == repo_name_unicode).one()
-
-        self.assertEqual(new_repo.repo_name, repo_name_unicode)
-        self.assertEqual(new_repo.description, description_unicode)
-
-        # test if the repository is visible in the list ?
-        response = self.app.get(url('summary_home', repo_name=repo_name))
-        response.mustcontain(repo_name)
-        response.mustcontain(self.REPO_TYPE)
-
-        # test if the repository was created on filesystem
-        try:
-            vcs.get_repo(os.path.join(TESTS_TMP_PATH, repo_name))
-        except vcs.exceptions.VCSError:
-            self.fail('no repo %s in filesystem' % repo_name)
 
     def test_create_in_group(self):
         self.log_user()
 
         ## create GROUP
-        group_name = 'sometest_%s' % self.REPO_TYPE
+        group_name = u'sometest_%s' % self.REPO_TYPE
         gr = RepoGroupModel().create(group_name=group_name,
-                                     group_description='test',
+                                     group_description=u'test',
                                      owner=TEST_USER_ADMIN_LOGIN)
         Session().commit()
 
-        repo_name = 'ingroup'
+        repo_name = u'ingroup'
         repo_name_full = RepoGroup.url_sep().join([group_name, repo_name])
-        description = 'description for newly created repo'
+        description = u'description for newly created repo'
         response = self.app.post(url('repos'),
                         fixture._get_repo_create_params(repo_private=False,
                                                 repo_name=repo_name,
@@ -150,7 +114,7 @@ class _BaseTest(object):
                                'Created repository <a href="/%s">%s</a>'
                                % (repo_name_full, repo_name_full))
         # test if the repo was created in the database
-        new_repo = Session().query(Repository)\
+        new_repo = Session().query(Repository) \
             .filter(Repository.repo_name == repo_name_full).one()
         new_repo_id = new_repo.repo_id
 
@@ -162,17 +126,17 @@ class _BaseTest(object):
         response.mustcontain(repo_name_full)
         response.mustcontain(self.REPO_TYPE)
 
-        inherited_perms = UserRepoToPerm.query()\
+        inherited_perms = UserRepoToPerm.query() \
             .filter(UserRepoToPerm.repository_id == new_repo_id).all()
         self.assertEqual(len(inherited_perms), 1)
 
         # test if the repository was created on filesystem
         try:
-            vcs.get_repo(os.path.join(TESTS_TMP_PATH, repo_name_full))
+            vcs.get_repo(safe_str(os.path.join(Ui.get_by_key('paths', '/').ui_value, repo_name_full)))
         except vcs.exceptions.VCSError:
             RepoGroupModel().delete(group_name)
             Session().commit()
-            self.fail('no repo %s in filesystem' % repo_name)
+            pytest.fail('no repo %s in filesystem' % repo_name)
 
         RepoModel().delete(repo_name_full)
         RepoGroupModel().delete(group_name)
@@ -198,21 +162,21 @@ class _BaseTest(object):
         Session().commit()
 
         ## create GROUP
-        group_name = 'reg_sometest_%s' % self.REPO_TYPE
+        group_name = u'reg_sometest_%s' % self.REPO_TYPE
         gr = RepoGroupModel().create(group_name=group_name,
-                                     group_description='test',
+                                     group_description=u'test',
                                      owner=TEST_USER_ADMIN_LOGIN)
         Session().commit()
 
-        group_name_allowed = 'reg_sometest_allowed_%s' % self.REPO_TYPE
+        group_name_allowed = u'reg_sometest_allowed_%s' % self.REPO_TYPE
         gr_allowed = RepoGroupModel().create(group_name=group_name_allowed,
-                                     group_description='test',
+                                     group_description=u'test',
                                      owner=TEST_USER_REGULAR_LOGIN)
         Session().commit()
 
-        repo_name = 'ingroup'
+        repo_name = u'ingroup'
         repo_name_full = RepoGroup.url_sep().join([group_name, repo_name])
-        description = 'description for newly created repo'
+        description = u'description for newly created repo'
         response = self.app.post(url('repos'),
                         fixture._get_repo_create_params(repo_private=False,
                                                 repo_name=repo_name,
@@ -224,9 +188,9 @@ class _BaseTest(object):
         response.mustcontain('Invalid value')
 
         # user is allowed to create in this group
-        repo_name = 'ingroup'
+        repo_name = u'ingroup'
         repo_name_full = RepoGroup.url_sep().join([group_name_allowed, repo_name])
-        description = 'description for newly created repo'
+        description = u'description for newly created repo'
         response = self.app.post(url('repos'),
                         fixture._get_repo_create_params(repo_private=False,
                                                 repo_name=repo_name,
@@ -242,7 +206,7 @@ class _BaseTest(object):
                                'Created repository <a href="/%s">%s</a>'
                                % (repo_name_full, repo_name_full))
         # test if the repo was created in the database
-        new_repo = Session().query(Repository)\
+        new_repo = Session().query(Repository) \
             .filter(Repository.repo_name == repo_name_full).one()
         new_repo_id = new_repo.repo_id
 
@@ -254,17 +218,17 @@ class _BaseTest(object):
         response.mustcontain(repo_name_full)
         response.mustcontain(self.REPO_TYPE)
 
-        inherited_perms = UserRepoToPerm.query()\
+        inherited_perms = UserRepoToPerm.query() \
             .filter(UserRepoToPerm.repository_id == new_repo_id).all()
         self.assertEqual(len(inherited_perms), 1)
 
         # test if the repository was created on filesystem
         try:
-            vcs.get_repo(os.path.join(TESTS_TMP_PATH, repo_name_full))
+            vcs.get_repo(safe_str(os.path.join(Ui.get_by_key('paths', '/').ui_value, repo_name_full)))
         except vcs.exceptions.VCSError:
             RepoGroupModel().delete(group_name)
             Session().commit()
-            self.fail('no repo %s in filesystem' % repo_name)
+            pytest.fail('no repo %s in filesystem' % repo_name)
 
         RepoModel().delete(repo_name_full)
         RepoGroupModel().delete(group_name)
@@ -275,9 +239,9 @@ class _BaseTest(object):
         self.log_user()
 
         ## create GROUP
-        group_name = 'sometest_%s' % self.REPO_TYPE
+        group_name = u'sometest_%s' % self.REPO_TYPE
         gr = RepoGroupModel().create(group_name=group_name,
-                                     group_description='test',
+                                     group_description=u'test',
                                      owner=TEST_USER_ADMIN_LOGIN)
         perm = Permission.get_by_key('repository.write')
         RepoGroupModel().grant_user_permission(gr, TEST_USER_REGULAR_LOGIN, perm)
@@ -285,9 +249,9 @@ class _BaseTest(object):
         ## add repo permissions
         Session().commit()
 
-        repo_name = 'ingroup_inherited_%s' % self.REPO_TYPE
+        repo_name = u'ingroup_inherited_%s' % self.REPO_TYPE
         repo_name_full = RepoGroup.url_sep().join([group_name, repo_name])
-        description = 'description for newly created repo'
+        description = u'description for newly created repo'
         response = self.app.post(url('repos'),
                         fixture._get_repo_create_params(repo_private=False,
                                                 repo_name=repo_name,
@@ -303,7 +267,7 @@ class _BaseTest(object):
                                'Created repository <a href="/%s">%s</a>'
                                % (repo_name_full, repo_name_full))
         # test if the repo was created in the database
-        new_repo = Session().query(Repository)\
+        new_repo = Session().query(Repository) \
             .filter(Repository.repo_name == repo_name_full).one()
         new_repo_id = new_repo.repo_id
 
@@ -317,14 +281,14 @@ class _BaseTest(object):
 
         # test if the repository was created on filesystem
         try:
-            vcs.get_repo(os.path.join(TESTS_TMP_PATH, repo_name_full))
+            vcs.get_repo(safe_str(os.path.join(Ui.get_by_key('paths', '/').ui_value, repo_name_full)))
         except vcs.exceptions.VCSError:
             RepoGroupModel().delete(group_name)
             Session().commit()
-            self.fail('no repo %s in filesystem' % repo_name)
+            pytest.fail('no repo %s in filesystem' % repo_name)
 
         #check if inherited permissiona are applied
-        inherited_perms = UserRepoToPerm.query()\
+        inherited_perms = UserRepoToPerm.query() \
             .filter(UserRepoToPerm.repository_id == new_repo_id).all()
         self.assertEqual(len(inherited_perms), 2)
 
@@ -340,7 +304,7 @@ class _BaseTest(object):
     def test_create_remote_repo_wrong_clone_uri(self):
         self.log_user()
         repo_name = self.NEW_REPO
-        description = 'description for newly created repo'
+        description = u'description for newly created repo'
         response = self.app.post(url('repos'),
                         fixture._get_repo_create_params(repo_private=False,
                                                 repo_name=repo_name,
@@ -354,7 +318,7 @@ class _BaseTest(object):
     def test_create_remote_repo_wrong_clone_uri_hg_svn(self):
         self.log_user()
         repo_name = self.NEW_REPO
-        description = 'description for newly created repo'
+        description = u'description for newly created repo'
         response = self.app.post(url('repos'),
                         fixture._get_repo_create_params(repo_private=False,
                                                 repo_name=repo_name,
@@ -367,8 +331,8 @@ class _BaseTest(object):
 
     def test_delete(self):
         self.log_user()
-        repo_name = 'vcs_test_new_to_delete_%s' % self.REPO_TYPE
-        description = 'description for newly created repo'
+        repo_name = u'vcs_test_new_to_delete_%s' % self.REPO_TYPE
+        description = u'description for newly created repo'
         response = self.app.post(url('repos'),
                         fixture._get_repo_create_params(repo_private=False,
                                                 repo_type=self.REPO_TYPE,
@@ -381,7 +345,7 @@ class _BaseTest(object):
                                'Created repository <a href="/%s">%s</a>'
                                % (repo_name, repo_name))
         # test if the repo was created in the database
-        new_repo = Session().query(Repository)\
+        new_repo = Session().query(Repository) \
             .filter(Repository.repo_name == repo_name).one()
 
         self.assertEqual(new_repo.repo_name, repo_name)
@@ -394,9 +358,9 @@ class _BaseTest(object):
 
         # test if the repository was created on filesystem
         try:
-            vcs.get_repo(os.path.join(TESTS_TMP_PATH, repo_name))
+            vcs.get_repo(safe_str(os.path.join(Ui.get_by_key('paths', '/').ui_value, repo_name)))
         except vcs.exceptions.VCSError:
-            self.fail('no repo %s in filesystem' % repo_name)
+            pytest.fail('no repo %s in filesystem' % repo_name)
 
         response = self.app.post(url('delete_repo', repo_name=repo_name),
             params={'_method': 'delete', '_authentication_token': self.authentication_token()})
@@ -406,21 +370,21 @@ class _BaseTest(object):
         response.follow()
 
         #check if repo was deleted from db
-        deleted_repo = Session().query(Repository)\
+        deleted_repo = Session().query(Repository) \
             .filter(Repository.repo_name == repo_name).scalar()
 
         self.assertEqual(deleted_repo, None)
 
-        self.assertEqual(os.path.isdir(os.path.join(TESTS_TMP_PATH, repo_name)),
+        self.assertEqual(os.path.isdir(os.path.join(Ui.get_by_key('paths', '/').ui_value, repo_name)),
                                   False)
 
     def test_delete_non_ascii(self):
         self.log_user()
         non_ascii = "ąęł"
-        repo_name = "%s%s" % (self.NEW_REPO, non_ascii)
-        repo_name_unicode = repo_name.decode('utf8')
+        repo_name = "%s%s" % (safe_str(self.NEW_REPO), non_ascii)
+        repo_name_unicode = safe_unicode(repo_name)
         description = 'description for newly created repo' + non_ascii
-        description_unicode = description.decode('utf8')
+        description_unicode = safe_unicode(description)
         response = self.app.post(url('repos'),
                         fixture._get_repo_create_params(repo_private=False,
                                                 repo_name=repo_name,
@@ -434,7 +398,7 @@ class _BaseTest(object):
                                u'Created repository <a href="/%s">%s</a>'
                                % (urllib.quote(repo_name), repo_name_unicode))
         # test if the repo was created in the database
-        new_repo = Session().query(Repository)\
+        new_repo = Session().query(Repository) \
             .filter(Repository.repo_name == repo_name_unicode).one()
 
         self.assertEqual(new_repo.repo_name, repo_name_unicode)
@@ -447,9 +411,9 @@ class _BaseTest(object):
 
         # test if the repository was created on filesystem
         try:
-            vcs.get_repo(os.path.join(TESTS_TMP_PATH, repo_name))
+            vcs.get_repo(safe_str(os.path.join(Ui.get_by_key('paths', '/').ui_value, repo_name_unicode)))
         except vcs.exceptions.VCSError:
-            self.fail('no repo %s in filesystem' % repo_name)
+            pytest.fail('no repo %s in filesystem' % repo_name)
 
         response = self.app.post(url('delete_repo', repo_name=repo_name),
             params={'_method': 'delete', '_authentication_token': self.authentication_token()})
@@ -457,12 +421,12 @@ class _BaseTest(object):
         response.follow()
 
         #check if repo was deleted from db
-        deleted_repo = Session().query(Repository)\
+        deleted_repo = Session().query(Repository) \
             .filter(Repository.repo_name == repo_name_unicode).scalar()
 
         self.assertEqual(deleted_repo, None)
 
-        self.assertEqual(os.path.isdir(os.path.join(TESTS_TMP_PATH, repo_name)),
+        self.assertEqual(os.path.isdir(os.path.join(Ui.get_by_key('paths', '/').ui_value, repo_name_unicode)),
                                   False)
 
     def test_delete_repo_with_group(self):
@@ -532,7 +496,7 @@ class _BaseTest(object):
 
     def test_set_fork_of_other_repo(self):
         self.log_user()
-        other_repo = 'other_%s' % self.REPO_TYPE
+        other_repo = u'other_%s' % self.REPO_TYPE
         fixture.create_repo(other_repo, repo_type=self.REPO_TYPE)
         repo = Repository.get_by_repo_name(self.REPO)
         repo2 = Repository.get_by_repo_name(other_repo)
@@ -604,7 +568,7 @@ class _BaseTest(object):
 
         user = User.get(usr['user_id'])
 
-        repo_name = self.NEW_REPO+'no_perms'
+        repo_name = self.NEW_REPO + u'no_perms'
         description = 'description for newly created repo'
         response = self.app.post(url('repos'),
                         fixture._get_repo_create_params(repo_private=False,
@@ -638,7 +602,7 @@ class _BaseTest(object):
         self.assertEqual(repo, None)
 
         # repo must not be in filesystem !
-        self.assertFalse(os.path.isdir(os.path.join(TESTS_TMP_PATH, repo_name)))
+        self.assertFalse(os.path.isdir(os.path.join(Ui.get_by_key('paths', '/').ui_value, repo_name)))
 
 class TestAdminReposControllerGIT(TestController, _BaseTest):
     REPO = GIT_REPO
