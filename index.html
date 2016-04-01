@@ -1,0 +1,284 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>Kallitheagit by sathishkumarbe</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-light.css">
+    <meta name="viewport" content="width=device-width">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>Kallitheagit</h1>
+        <p>Enhancing git support in kallithea. </p>
+
+        <p class="view"><a href="https://github.com/sathishkumarbe/kallitheaGit">View the Project on GitHub <small>sathishkumarbe/kallitheaGit</small></a></p>
+
+
+        <ul>
+          <li><a href="https://github.com/sathishkumarbe/kallitheaGit/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/sathishkumarbe/kallitheaGit/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/sathishkumarbe/kallitheaGit">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
+        <h1></h1>
+
+<h1>
+<a id="kallithea-readme" class="anchor" href="#kallithea-readme" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Kallithea README</h1>
+
+<h2>
+<a id="about" class="anchor" href="#about" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>About</h2>
+
+<p><strong>Kallithea</strong> is a fast and powerful management tool for Mercurial_ and Git_
+with a built-in push/pull server, full text search and code-review. It works on
+http/https and has a built in permission/authentication system with the ability
+to authenticate via LDAP or ActiveDirectory. Kallithea also provides simple API
+so it's easy to integrate with existing external systems.</p>
+
+<p>Kallithea is similar in some respects to GitHub_ or Bitbucket_, however
+Kallithea can be run as standalone hosted application on your own server. It is
+open-source donationware and focuses more on providing a customised,
+self-administered interface for Mercurial_ and Git_ repositories. Kallithea
+works on Unix-like systems and Windows, and is powered by the vcs_ library
+created by Łukasz Balcerzak and Marcin Kuźmiński to uniformly handle multiple
+version control systems.</p>
+
+<p>Kallithea was forked from RhodeCode in July 2014 and has been heavily modified.</p>
+
+<h2>
+<a id="installation" class="anchor" href="#installation" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Installation</h2>
+
+<p>Kallithea requires Python_ 2.x and it is recommended to install it in a
+virtualenv_. Official releases of Kallithea can be installed with::</p>
+
+<pre><code>pip install kallithea
+</code></pre>
+
+<p>The development repository is kept very stable and used in production by the
+developers -- you can do the same.</p>
+
+<p>Please visit <a href="https://docs.kallithea-scm.org/en/latest/installation.html">https://docs.kallithea-scm.org/en/latest/installation.html</a> for
+more details.</p>
+
+<p>There is also an experimental <code>Puppet module</code>_ for installing and setting up
+Kallithea. Currently, only basic functionality is provided, but it is still
+enough to get up and running quickly, especially for people without Python
+background. See
+<a href="https://docs.kallithea-scm.org/en/latest/installation_puppet.html">https://docs.kallithea-scm.org/en/latest/installation_puppet.html</a> for further
+information.</p>
+
+<h2>
+<a id="source-code" class="anchor" href="#source-code" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Source code</h2>
+
+<p>The latest sources can be obtained from
+<a href="https://kallithea-scm.org/repos/kallithea">https://kallithea-scm.org/repos/kallithea</a>.</p>
+
+<p>The issue tracker and a repository mirror can be found at Bitbucket_ on
+<a href="https://bitbucket.org/conservancy/kallithea">https://bitbucket.org/conservancy/kallithea</a>.</p>
+
+<h2>
+<a id="kallithea-features" class="anchor" href="#kallithea-features" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Kallithea features</h2>
+
+<ul>
+<li>Has its own middleware to handle Mercurial_ and Git_ protocol requests. Each
+request is authenticated and logged together with IP address.</li>
+<li>Built for speed and performance. You can make multiple pulls/pushes
+simultaneously. Proven to work with thousands of repositories and users.</li>
+<li>Supports http/https, LDAP, AD, proxy-pass authentication.</li>
+<li>Full permissions (private/read/write/admin) together with IP restrictions for
+each repository, additional explicit forking, repositories group and
+repository creation permissions.</li>
+<li>User groups for easier permission management.</li>
+<li>Repository groups let you group repos and manage them easier. They come with
+permission delegation features, so you can delegate groups management.</li>
+<li>Users can fork other users repos, and compare them at any time.</li>
+<li>Built-in versioned paste functionality (Gist) for sharing code snippets.</li>
+<li>Integrates easily with other systems, with custom created mappers you can
+connect it to almost any issue tracker, and with a JSON-RPC API you can make
+much more.</li>
+<li>Built-in commit API lets you add, edit and commit files right from Kallithea
+web interface using simple editor or upload binary files using simple form.</li>
+<li>Powerful pull request driven review system with inline commenting, changeset
+statuses, and notification system.</li>
+<li>Importing and syncing repositories from remote locations for Git_, Mercurial_
+and Subversion.</li>
+<li>Mako templates let you customize the look and feel of the application.</li>
+<li>Beautiful diffs, annotations and source code browsing all colored by
+pygments. Raw diffs are made in Git-diff format for both VCS systems,
+including Git_ binary-patches.</li>
+<li>Mercurial_ and Git_ DAG graphs and Flot-powered graphs with zooming and
+statistics to track activity for repositories.</li>
+<li>Admin interface with user/permission management. Admin activity journal, logs
+pulls, pushes, forks, registrations and other actions made by all users.</li>
+<li>Server side forks. It is possible to fork a project and modify it freely
+without breaking the main repository.</li>
+<li>reST and Markdown README support for repositories.</li>
+<li>Full text search powered by Whoosh on the source files, commit messages, and
+file names. Built-in indexing daemons, with optional incremental index build
+(no external search servers required all in one application).</li>
+<li>Setup project descriptions/tags and info inside built in DB for easy,
+non-filesystem operations.</li>
+<li>Intelligent cache with invalidation after push or project change, provides
+high performance and always up to date data.</li>
+<li>RSS/Atom feeds, Gravatar support, downloadable sources as zip/tar/gz.</li>
+<li>Optional async tasks for speed and performance using Celery_.</li>
+<li>Backup scripts can do backup of whole app and send it over scp to desired
+location.</li>
+<li>Based on Pylons, SQLAlchemy, SQLite, Whoosh, vcs.</li>
+</ul>
+
+<h2>
+<a id="license" class="anchor" href="#license" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>License</h2>
+
+<p><strong>Kallithea</strong> is released under the GPLv3 license. Kallithea is a <code>Software
+Freedom Conservancy</code>_ project and thus controlled by a non-profit organization.
+No commercial entity can take ownership of the project and change the
+direction.</p>
+
+<p>Kallithea started out as an effort to make sure the existing GPLv3 codebase
+would stay available under a legal license. Kallithea thus has to stay GPLv3
+compatible ... but we are also happy it is GPLv3 and happy to keep it that way.
+A different license (such as AGPL) could perhaps help attract a different
+community with a different mix of Free Software people and companies but we are
+happy with the current focus.</p>
+
+<h2>
+<a id="community" class="anchor" href="#community" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Community</h2>
+
+<p><strong>Kallithea</strong> is maintained by its users who contribute the fixes they would
+like to see.</p>
+
+<p>Get in touch with the rest of the community:</p>
+
+<ul>
+<li><p>Join the mailing list users and developers -- see
+<a href="http://lists.sfconservancy.org/mailman/listinfo/kallithea-general">http://lists.sfconservancy.org/mailman/listinfo/kallithea-general</a>.</p></li>
+<li><p>Use IRC and join #kallithea on FreeNode (irc.freenode.net) or use
+<a href="http://webchat.freenode.net/?channels=kallithea">http://webchat.freenode.net/?channels=kallithea</a>.</p></li>
+<li><p>Follow Kallithea on Twitter, <strong>@KallitheaSCM</strong>.</p></li>
+<li>
+<p>Issues can be reported at <code>issue tracker
+&lt;https://bitbucket.org/conservancy/kallithea/issues&gt;</code>_.</p>
+
+<p>.. note::</p>
+
+<p>Please try to read the documentation before posting any issues,
+   especially the <strong>troubleshooting section</strong></p>
+</li>
+</ul>
+
+<h2>
+<a id="online-documentation" class="anchor" href="#online-documentation" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Online documentation</h2>
+
+<p>Online documentation for the current version of Kallithea is available at
+<a href="https://pythonhosted.org/Kallithea/">https://pythonhosted.org/Kallithea/</a>. Documentation for the current development
+version can be found on <a href="https://docs.kallithea-scm.org/">https://docs.kallithea-scm.org/</a>.</p>
+
+<p>You can also build the documentation locally: go to <code>docs/</code> and run::</p>
+
+<p>make html</p>
+
+<p>.. note:: You need to have Sphinx_ installed to build the
+          documentation. If you don't have Sphinx_ installed you can
+          install it via the command: <code>pip install sphinx</code> .</p>
+
+<h2>
+<a id="converting-from-rhodecode" class="anchor" href="#converting-from-rhodecode" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Converting from RhodeCode</h2>
+
+<p>Currently, you have two options for working with an existing RhodeCode
+database:</p>
+
+<ul>
+<li>keep the database unconverted (intended for testing and evaluation)</li>
+<li>convert the database in a one-time step</li>
+</ul>
+
+<p>Maintaining interoperability
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^</p>
+
+<p>Interoperability with RhodeCode 2.2.X installations is provided so you don't
+have to immediately commit to switching to Kallithea. This option will most
+likely go away once the two projects have diverged significantly.</p>
+
+<p>To run Kallithea on a RhodeCode database, run::</p>
+
+<p>echo "BRAND = 'rhodecode'" &gt; kallithea/brand.py</p>
+
+<p>This location will depend on where you installed Kallithea. If you installed
+via::</p>
+
+<p>python2 setup.py install</p>
+
+<p>then you will find this location at
+<code>$VIRTUAL_ENV/lib/python2.7/site-packages/Kallithea-0.1-py2.7.egg/kallithea</code>.</p>
+
+<p>One-time conversion
+^^^^^^^^^^^^^^^^^^^</p>
+
+<p>Alternatively, if you would like to convert the database for good, you can use
+a helper script provided by Kallithea. This script will operate directly on the
+database, using the database string you can find in your <code>production.ini</code> (or
+<code>development.ini</code>) file. For example, if using SQLite::</p>
+
+<p>cd /path/to/kallithea
+   cp /path/to/rhodecode/rhodecode.db kallithea.db
+   pip install sqlalchemy-migrate
+   python2 kallithea/bin/rebranddb.py sqlite:///kallithea.db</p>
+
+<p>.. Note::</p>
+
+<p>If you started out using the branding interoperability approach mentioned
+   above, watch out for stray brand.pyc after removing brand.py.</p>
+
+<p>Git hooks
+^^^^^^^^^</p>
+
+<p>After switching to Kallithea, it will be necessary to update the Git_ hooks in
+your repositories. If not, the Git_ hooks from RhodeCode will still be called,
+which will cause <code>git push</code> to fail every time.</p>
+
+<p>If you do not have any custom Git_ hooks deployed, perform the following steps
+(this may take some time depending on the number and size of repositories you
+have):</p>
+
+<ol>
+<li><p>Log-in as an administrator.</p></li>
+<li><p>Open page <em>Admin &gt; Settings &gt; Remap and Rescan</em>.</p></li>
+<li><p>Turn on the option <strong>Install Git Hooks</strong>.</p></li>
+<li><p>Turn on the option <strong>Overwrite existing Git hooks</strong>.</p></li>
+<li><p>Click on the button <strong>Rescan Repositories</strong>.</p></li>
+</ol>
+
+<p>If you do have custom hooks, you will need to merge those changes manually. In
+order to get sample hooks from Kallithea, the easiest way is to create a new Git_
+repository, and have a look at the hooks deployed there.</p>
+
+<p>.. _virtualenv: <a href="http://pypi.python.org/pypi/virtualenv">http://pypi.python.org/pypi/virtualenv</a>
+.. _Python: <a href="http://www.python.org/">http://www.python.org/</a>
+.. _Sphinx: <a href="http://sphinx.pocoo.org/">http://sphinx.pocoo.org/</a>
+.. _Mercurial: <a href="http://mercurial.selenic.com/">http://mercurial.selenic.com/</a>
+.. _Bitbucket: <a href="http://bitbucket.org/">http://bitbucket.org/</a>
+.. _GitHub: <a href="http://github.com/">http://github.com/</a>
+.. _Subversion: <a href="http://subversion.tigris.org/">http://subversion.tigris.org/</a>
+.. _Git: <a href="http://git-scm.com/">http://git-scm.com/</a>
+.. _Celery: <a href="http://celeryproject.org/">http://celeryproject.org/</a>
+.. _vcs: <a href="http://pypi.python.org/pypi/vcs">http://pypi.python.org/pypi/vcs</a>
+.. _Software Freedom Conservancy: <a href="http://sfconservancy.org/">http://sfconservancy.org/</a>
+.. _Puppet module: <a href="https://forge.puppetlabs.com/rauch/kallithea">https://forge.puppetlabs.com/rauch/kallithea</a></p>
+      </section>
+      <footer>
+        <p>This project is maintained by <a href="https://github.com/sathishkumarbe">sathishkumarbe</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+    
+  </body>
+</html>
